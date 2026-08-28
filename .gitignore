@@ -1,0 +1,11 @@
+# Never publish operational data — project files carry real positions.
+*.json
+*.csv
+*.kml
+*.kmz
+*.gpx
+*.zip
+*.tif
+*.tiff
+*.apk
+.DS_Store
