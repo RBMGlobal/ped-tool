@@ -52,6 +52,12 @@
   header { padding: 10px 16px 9px; background: var(--surface-1); border-bottom: 1px solid var(--hairline); display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
   header h1 { font-size: 15px; margin: 0; font-weight: 650; }
   header .sub { color: var(--ink-2); font-size: 12.5px; }
+  header .manual { margin-left: auto; font-size: 12.5px; font-weight: 600; text-decoration: none;
+    color: var(--ink-1); border: 1px solid var(--hairline); border-radius: 7px; padding: 3px 10px;
+    background: var(--surface-1); white-space: nowrap; }
+  header .manual:hover { background: color-mix(in srgb, var(--ink-1) 7%, transparent); }
+  header .manual:focus-visible { outline: 2px solid #0a58ff; outline-offset: 2px; }
+  .helplink { display: inline-block; margin-bottom: 8px; font-weight: 600; }
   .sens { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; color: #fff; background: #b3261e; border-radius: 4px; padding: 2px 7px; text-transform: uppercase; }
   #wrap { flex: 1; display: flex; min-height: 0; }
   #panel { width: var(--panelw, 300px); min-width: var(--panelw, 300px); overflow-y: auto; background: var(--surface-1); border-right: 1px solid var(--hairline); padding: 12px 14px 24px; }
@@ -261,6 +267,7 @@
   <h1>PED tool</h1>
   <span class="sub">Add, import or draw — points, routes, threat areas, imagery — then export to TAK</span>
   <span class="sens">Sensitive — handle per your security policy</span>
+  <a class="manual" id="manualLink" href="https://rbmglobal.co.uk/ped-tool/manual.html" target="_blank" rel="noopener" title="Open the full manual in a new tab">Manual ↗</a>
 </header>
 <div id="wrap">
   <aside id="panel">
@@ -396,6 +403,7 @@
 
     <details class="sec" id="sec-help">
     <summary>Help &amp; OPSEC</summary>
+    <a class="manual helplink" id="manualLink2" href="https://rbmglobal.co.uk/ped-tool/manual.html" target="_blank" rel="noopener">Open the full manual ↗</a>
     <div class="note">
       Layers are yours to define: click a name to rename, “+ Add layer” to add, ✕ to delete.
       Add points by coordinate (decimal, DMS or MGRS), “Pick on map”, or import CSV
@@ -3950,6 +3958,17 @@ function saveUI(){
   var i = document.createElement('link'); i.rel = 'apple-touch-icon'; i.href = 'icon-192.png';
   document.head.appendChild(m); document.head.appendChild(i);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+})();
+
+/* The manual travels with the hosted copy, so prefer the sibling file when we're served over
+   http(s) — the offline worker caches it, and it stays correct if the site ever moves. Opened
+   from a local file or inside the app there is no sibling, so those keep the published URL. */
+(function(){
+  if (!/^https?:$/.test(location.protocol)) return;
+  ['manualLink','manualLink2'].forEach(function(id){
+    var a = document.getElementById(id);
+    if (a) a.setAttribute('href', 'manual.html');
+  });
 })();
 
 refreshSelUI();
