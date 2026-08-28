@@ -1,0 +1,920 @@
+<title>PED Field Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+
+<style>
+  /* ---- tokens: light is the base set; both dark paths only redefine these ---- */
+  :root {
+    --paper:      #EFF2F3;
+    --surface:    #FFFFFF;
+    --surface-2:  #E7ECEE;
+    --ink:        #14202B;
+    --ink-2:      #45596A;
+    --muted:      #74889A;
+    --rule:       #C7D3DA;
+    --rule-soft:  #DDE5E9;
+    --accent:     #0A4FE0;
+    --accent-ink: #073BA8;
+    --caution:    #8A5600;
+    --caution-bg: #F7EEDD;
+    --critical:   #A81E16;
+    --critical-bg:#F8E7E5;
+    --grid:       rgba(20,32,43,.055);
+    --shadow:     0 1px 2px rgba(20,32,43,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0E141A;
+      --surface:    #161E25;
+      --surface-2:  #1D272F;
+      --ink:        #E5ECF1;
+      --ink-2:      #AEBECA;
+      --muted:      #7F919F;
+      --rule:       #2A3742;
+      --rule-soft:  #212C35;
+      --accent:     #7FA8FF;
+      --accent-ink: #A8C4FF;
+      --caution:    #E0AC55;
+      --caution-bg: #2A2013;
+      --critical:   #EC8378;
+      --critical-bg:#2C1A18;
+      --grid:       rgba(229,236,241,.05);
+      --shadow:     0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0E141A;
+    --surface:    #161E25;
+    --surface-2:  #1D272F;
+    --ink:        #E5ECF1;
+    --ink-2:      #AEBECA;
+    --muted:      #7F919F;
+    --rule:       #2A3742;
+    --rule-soft:  #212C35;
+    --accent:     #7FA8FF;
+    --accent-ink: #A8C4FF;
+    --caution:    #E0AC55;
+    --caution-bg: #2A2013;
+    --critical:   #EC8378;
+    --critical-bg:#2C1A18;
+    --grid:       rgba(229,236,241,.05);
+    --shadow:     0 1px 2px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    font-size: 16.5px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- masthead ---- */
+  .mast {
+    border-bottom: 1px solid var(--rule);
+    background:
+      repeating-linear-gradient(0deg, var(--grid) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(90deg, var(--grid) 0 1px, transparent 1px 28px),
+      var(--surface);
+  }
+  .mast-in { max-width: 1180px; margin: 0 auto; padding: 44px 28px 30px; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px;
+  }
+  h1 {
+    font-family: "IBM Plex Sans Condensed", "Helvetica Neue", Arial, sans-serif;
+    font-weight: 700; font-size: clamp(34px, 5.4vw, 52px); line-height: 1.03;
+    letter-spacing: -.015em; margin: 0; text-wrap: balance;
+  }
+  .stand {
+    max-width: 62ch; margin: 16px 0 0; color: var(--ink-2); font-size: 17.5px;
+  }
+  .factbar {
+    display: flex; flex-wrap: wrap; gap: 0; margin-top: 26px;
+    border: 1px solid var(--rule); background: var(--surface);
+  }
+  .fact { flex: 1 1 190px; padding: 11px 14px; border-right: 1px solid var(--rule-soft); }
+  .fact:last-child { border-right: 0; }
+  .fact dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 3px;
+  }
+  .fact dd {
+    margin: 0; font-family: "IBM Plex Sans Condensed", Arial, sans-serif;
+    font-size: 15px; font-weight: 600;
+  }
+
+  /* ---- shell ---- */
+  .shell {
+    max-width: 1180px; margin: 0 auto; padding: 0 28px 90px;
+    display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 52px; align-items: start;
+  }
+  .rail { position: sticky; top: 24px; padding-top: 40px; }
+  .rail-h {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+    padding-bottom: 8px; border-bottom: 1px solid var(--rule); margin-bottom: 10px;
+  }
+  .rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .rail a {
+    display: grid; grid-template-columns: 22px 1fr; gap: 7px; align-items: baseline;
+    padding: 3px 4px 3px 0; text-decoration: none; color: var(--ink-2);
+    font-family: "IBM Plex Sans Condensed", Arial, sans-serif; font-size: 14px; line-height: 1.32;
+  }
+  .rail a:hover { color: var(--accent-ink); }
+  .rail .n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px;
+    color: var(--muted); font-variant-numeric: tabular-nums;
+  }
+  .rail .sep {
+    margin: 12px 0 6px; border-top: 1px solid var(--rule-soft);
+    padding-top: 10px; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+
+  main { padding-top: 40px; min-width: 0; }
+  section { scroll-margin-top: 20px; margin-bottom: 46px; }
+  section > :last-child { margin-bottom: 0; }
+
+  h2 {
+    font-family: "IBM Plex Sans Condensed", Arial, sans-serif;
+    font-weight: 700; font-size: 25px; letter-spacing: -.008em; line-height: 1.16;
+    margin: 0 0 4px; text-wrap: balance;
+    display: grid; grid-template-columns: auto 1fr; gap: 11px; align-items: baseline;
+  }
+  h2 .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; font-weight: 500;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .h2rule { border: 0; border-top: 1px solid var(--rule); margin: 0 0 16px; }
+  h3 {
+    font-family: "IBM Plex Sans Condensed", Arial, sans-serif;
+    font-weight: 600; font-size: 17.5px; margin: 26px 0 6px; letter-spacing: -.004em;
+  }
+  p { margin: 0 0 13px; max-width: 68ch; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  strong { font-weight: 600; }
+
+  ul, ol.plain { max-width: 68ch; margin: 0 0 13px; padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  li > ul { margin-top: 5px; }
+
+  /* control names, file names, CoT types */
+  .ui, code, kbd {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: .84em;
+  }
+  .ui {
+    background: var(--surface-2); border: 1px solid var(--rule-soft);
+    padding: .5px 4px; border-radius: 2px; color: var(--ink);
+    overflow-wrap: break-word;   /* long control names must never push the page sideways */
+    box-decoration-break: clone; -webkit-box-decoration-break: clone;   /* a wrapped chip keeps its box */
+  }
+  code { color: var(--accent-ink); word-break: break-word; }
+  kbd {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-bottom-width: 2px; border-radius: 3px; padding: 1px 5px; color: var(--ink);
+  }
+
+  /* quick-start steps — a real sequence, so it gets real numbers */
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+  .steps > li {
+    display: grid; grid-template-columns: 46px 1fr; gap: 16px;
+    padding: 16px 0; border-top: 1px solid var(--rule-soft); margin: 0;
+  }
+  .steps > li:first-child { border-top: 1px solid var(--rule); }
+  .steps .sn {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 26px; font-weight: 400;
+    color: var(--accent); line-height: 1; padding-top: 3px; font-variant-numeric: tabular-nums;
+  }
+  .steps h3 { margin: 0 0 4px; font-size: 17px; }
+  .steps p:last-child { margin-bottom: 0; }
+
+  /* callouts — hairline blocks, not rounded cards */
+  .note {
+    border: 1px solid var(--rule); border-left-width: 3px; background: var(--surface);
+    padding: 12px 15px; margin: 16px 0; max-width: 68ch; box-shadow: var(--shadow);
+  }
+  .note p:last-child { margin-bottom: 0; }
+  .note-l {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .13em; text-transform: uppercase; margin: 0 0 5px; color: var(--muted);
+  }
+  .note--watch { border-left-color: var(--caution); background: var(--caution-bg); }
+  .note--watch .note-l { color: var(--caution); }
+  .note--ops { border-left-color: var(--accent); }
+  .note--ops .note-l { color: var(--accent); }
+  .note--stop { border-left-color: var(--critical); background: var(--critical-bg); }
+  .note--stop .note-l { color: var(--critical); }
+
+  .tw { overflow-x: auto; margin: 16px 0; border: 1px solid var(--rule); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  thead th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 10.5px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--rule); font-weight: 500; white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.mono, th.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--surface-2); }
+
+  .swatch {
+    display: inline-block; width: 10px; height: 10px; margin-right: 7px;
+    border: 1px solid rgba(128,128,128,.55); vertical-align: baseline;
+  }
+
+  footer {
+    border-top: 1px solid var(--rule); margin-top: 20px; padding-top: 18px;
+    color: var(--muted); font-size: 13.5px; max-width: 68ch;
+  }
+
+  a:focus-visible, .rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 20px 70px; }
+    .rail { position: static; padding-top: 28px; }
+    .rail ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 18px; }
+    .mast-in { padding: 34px 20px 26px; }
+    main { padding-top: 28px; }
+    .fact { border-right: 0; border-bottom: 1px solid var(--rule-soft); }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+<header class="mast">
+  <div class="mast-in">
+    <p class="eyebrow">Version 1.7 · 28 August 2026 · RBM Global</p>
+    <h1>PED Field Manual</h1>
+    <p class="stand">
+      PED is a single HTML file — and an Android app built from that same file — for working up
+      an operational picture on a map and handing it to ATAK as a data package. Plot and edit in
+      bulk here, where it is quick, then export once. Everything runs on the device you open it on.
+    </p>
+    <dl class="factbar">
+      <div class="fact"><dt>Applies to</dt><dd>Tool + app v1.7</dd></div>
+      <div class="fact"><dt>Runs on</dt><dd>Any browser · Android 7+</dd></div>
+      <div class="fact"><dt>Feeds</dt><dd>ATAK · WinTAK</dd></div>
+      <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
+    </dl>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="rail" aria-label="Contents">
+    <p class="rail-h">Contents</p>
+    <ol>
+      <li><a href="#quickstart"><span class="n">—</span><span>Quick start</span></a></li>
+      <li><a href="#project"><span class="n">01</span><span>Project — save &amp; restore</span></a></li>
+      <li><a href="#basemap"><span class="n">02</span><span>Map &amp; basemap</span></a></li>
+      <li><a href="#layers"><span class="n">03</span><span>Layers</span></a></li>
+      <li><a href="#points"><span class="n">04</span><span>Plotting points</span></a></li>
+      <li><a href="#importing"><span class="n">05</span><span>Bringing coordinates in</span></a></li>
+      <li><a href="#routes"><span class="n">06</span><span>Routes</span></a></li>
+      <li><a href="#areas"><span class="n">07</span><span>Threat areas</span></a></li>
+      <li><a href="#imagery"><span class="n">08</span><span>Imagery overlays</span></a></li>
+      <li><a href="#select"><span class="n">09</span><span>Select &amp; bulk edit</span></a></li>
+      <li><a href="#export"><span class="n">10</span><span>Exporting to TAK</span></a></li>
+      <li><a href="#app"><span class="n">11</span><span>Web link &amp; app</span></a></li>
+      <li><a href="#opsec"><span class="n">12</span><span>What leaves the device</span></a></li>
+    </ol>
+    <p class="sep">Reference</p>
+    <ol>
+      <li><a href="#symbology"><span class="n">A</span><span>Symbology &amp; CoT types</span></a></li>
+      <li><a href="#keys"><span class="n">B</span><span>Keyboard &amp; mouse</span></a></li>
+      <li><a href="#gotchas"><span class="n">C</span><span>Things that catch people out</span></a></li>
+      <li><a href="#versions"><span class="n">D</span><span>Version history</span></a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="quickstart">
+      <h2><span class="num">—</span><span>Quick start: a package into ATAK in five minutes</span></h2>
+      <hr class="h2rule">
+      <p>
+        Sections 1–9 below follow the panels down the sidebar, in order. If you only ever do one
+        thing with this tool, it is the sequence here.
+      </p>
+      <ol class="steps">
+        <li>
+          <span class="sn">1</span>
+          <div>
+            <h3>Open it</h3>
+            <p>
+              Double-click <code>PED_tool.html</code> (any browser) or open the <strong>PED</strong>
+              app. If you were working on something last time, a bar offers to
+              <span class="ui">Restore</span> it — take it, or <span class="ui">Start blank</span>.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="sn">2</span>
+          <div>
+            <h3>Name a layer</h3>
+            <p>
+              In <span class="ui">Layers — key &amp; filter</span>, click the name
+              <span class="ui">Layer 1</span> and type what these points are — "Blocking positions",
+              "Reported incidents". Set its <span class="ui">Default icon</span> so everything you
+              add gets the right TAK symbol without touching each point.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="sn">3</span>
+          <div>
+            <h3>Get the locations in</h3>
+            <p>
+              Three ways, all in <span class="ui">Plot points</span>: type a coordinate and press
+              <span class="ui">Add point</span>; press <span class="ui">Pick on map</span> and click;
+              or paste the messages you were sent into <span class="ui">Bulk paste</span> and press
+              <span class="ui">Scan for coordinates</span>. Files — a WhatsApp export, CSV, KML, GPX,
+              Word, PowerPoint — just get dropped onto the map. See section 5.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="sn">4</span>
+          <div>
+            <h3>Check each point</h3>
+            <p>
+              Click a marker. Set its affiliation (hostile / friendly / …), its type, its
+              <strong>Layer</strong>, and anything worth saying in <strong>Notes</strong> — notes
+              become the marker's remarks in ATAK. Attach a photo if you have one.
+            </p>
+          </div>
+        </li>
+        <li>
+          <span class="sn">5</span>
+          <div>
+            <h3>Export and import</h3>
+            <p>
+              <span class="ui">Export TAK — everything (one package)</span> gives you a single
+              <code>.zip</code>. In ATAK: <strong>Import Manager → Local SD</strong> and pick it (or
+              drop the zip into <code>atak/tools/datapackage</code> first). In the Android app the
+              export opens the share sheet — choose ATAK and it goes straight in.
+            </p>
+          </div>
+        </li>
+      </ol>
+      <div class="note note--watch">
+        <p class="note-l">Before you rely on it</p>
+        <p>
+          On a new TAK build, export one point, one route and one area first and check they land the
+          way you expect. Shape and icon handling varies a little between ATAK versions.
+        </p>
+      </div>
+    </section>
+
+    <section id="project">
+      <h2><span class="num">01</span><span>Project — save &amp; restore</span></h2>
+      <hr class="h2rule">
+      <p>
+        <span class="ui">Save (.json)</span> writes everything — points, routes, areas, imagery
+        overlays, attachments, custom icons, your planning speed — into one file. That file is the
+        backup and the way you hand work to someone else. <span class="ui">Load / import…</span>
+        opens it again, and is also the button for importing any other format.
+      </p>
+      <h3>Autosave is a safety net, not a backup</h3>
+      <p>
+        The tool saves to the browser's own storage as you work and offers it back next time you
+        open the file. That storage belongs to <em>that browser on that device</em> — it does not
+        travel with the HTML file, it is lost if the browser data is cleared, and very large
+        attachments or imagery can exceed what it will hold. Save a <code>.json</code> at the end of
+        anything you care about.
+      </p>
+      <h3>Why the same project file matters</h3>
+      <p>
+        Every item exports with an identifier built from the project it belongs to. Re-export from
+        the <em>same</em> project and ATAK <strong>updates</strong> the markers you already sent.
+        Start a fresh project and export the same points, and ATAK treats them as new ones — you get
+        duplicates. So: one project file per operation, kept and reloaded.
+      </p>
+    </section>
+
+    <section id="basemap">
+      <h2><span class="num">02</span><span>Map &amp; basemap</span></h2>
+      <hr class="h2rule">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Basemap</th><th>Source</th><th>Use it for</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">Street</td><td>OpenStreetMap</td><td>Road names, settlements, general orientation</td></tr>
+            <tr><td class="mono">Satellite</td><td>Esri World Imagery</td><td>Ground truth — compounds, tracks, vegetation</td></tr>
+            <tr><td class="mono">Sat hybrid</td><td>Esri imagery + labels</td><td>Imagery with roads and place names over it. No key needed</td></tr>
+            <tr><td class="mono">Terrain</td><td>OpenTopoMap</td><td>Contours and relief</td></tr>
+            <tr><td class="mono">Google hyb</td><td>Unofficial Google endpoint</td><td>When Google's imagery is clearly better. See the warning below</td></tr>
+            <tr><td class="mono">Mapbox hyb</td><td>Mapbox satellite-streets</td><td>Alternative imagery; uses the team token, or paste your own</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note note--watch">
+        <p class="note-l">Google hyb</p>
+        <p>
+          This uses the unofficial tile endpoint that community ATAK map sources use — not the paid
+          Google Maps API. It can stop working without notice and its use sits in a grey area of
+          Google's terms. Treat switching it on as a team decision, not a default.
+        </p>
+      </div>
+      <h3>Imagery capture date</h3>
+      <p>
+        On <span class="ui">Satellite</span> and <span class="ui">Sat hybrid</span>, a small chip in
+        the corner of the map shows when the imagery under the centre of your view was taken, and
+        updates as you move. For a specific spot, press
+        <span class="ui">Imagery capture date</span> and click it — you get the date, the resolution
+        and the source. This needs internet, and only Esri publishes it; Google and Mapbox don't.
+      </p>
+      <h3>Terrain</h3>
+      <p>
+        <span class="ui">Hillshade relief</span> lays shaded relief over whichever basemap you are
+        on, which makes valleys, wadis and drainage lines read at a glance.
+        <span class="ui">Elevation profile</span> then takes two clicks and draws a cross-section
+        between them with the drop, the relief and the steepest slope; each route card has a
+        <span class="ui">Profile</span> button that does the same for the whole route.
+      </p>
+      <div class="note note--watch">
+        <p class="note-l">Resolution</p>
+        <p>
+          The elevation model is roughly 30&nbsp;m. It resolves valleys and large wadis honestly. It
+          will <strong>not</strong> show a narrow erosion gulley that could still stop a vehicle —
+          ground-truth those.
+        </p>
+      </div>
+      <p>
+        <span class="ui">Zoom to everything</span> frames all your plotted work.
+        <span class="ui">Show data table</span> swaps the map for a table of every point — the
+        fastest way to check a batch you have just imported. Press it again for the map.
+      </p>
+    </section>
+
+    <section id="layers">
+      <h2><span class="num">03</span><span>Layers</span></h2>
+      <hr class="h2rule">
+      <p>
+        Layers are yours to define — they are how you group the picture and how you export it in
+        pieces. Click a layer's name to rename it. The tick box hides and shows it on the map. The
+        count on the right is how many points it holds. <span class="ui">✕</span> deletes the layer
+        and its points (<kbd>Ctrl</kbd>+<kbd>Z</kbd> brings them back).
+        <span class="ui">+ Add layer</span> makes another.
+      </p>
+      <h3>Default icon</h3>
+      <p>
+        Each layer has a <span class="ui">Default icon</span> — an affiliation, or a specific type
+        such as Infantry or a coloured spot dot. Every point in the layer that you have not
+        overridden individually follows it, so changing one dropdown re-symbolises the whole layer.
+        Points you <em>have</em> set by hand keep what you gave them, and the tool tells you how many
+        it left alone.
+      </p>
+      <h3>Moving points between layers</h3>
+      <ul>
+        <li><strong>One point:</strong> open its popup and change the <strong>Layer</strong> dropdown. Pick <span class="ui">➕ New layer…</span> to create one on the spot.</li>
+        <li><strong>Several:</strong> select them, then use <span class="ui">Move selected to layer…</span> in <span class="ui">Select &amp; bulk edit</span> — which also offers a new layer.</li>
+        <li><strong>On import:</strong> anything you drop that contains points asks where to put them first. See section 5.</li>
+      </ul>
+    </section>
+
+    <section id="points">
+      <h2><span class="num">04</span><span>Plotting points</span></h2>
+      <hr class="h2rule">
+      <p>
+        In the <span class="ui">Plot points</span> box, choose the coordinate format
+        (<span class="ui">Decimal °</span>, <span class="ui">D° M′ S″</span> or
+        <span class="ui">MGRS</span>), the layer, the affiliation and the type, then type the
+        coordinate and press <span class="ui">Add point</span>. Or press
+        <span class="ui">Pick on map</span> and click the position — <kbd>Esc</kbd> stops picking.
+      </p>
+      <h3>The marker popup</h3>
+      <p>Click any marker. From top to bottom you get:</p>
+      <ul>
+        <li>Its current type and layer, the coordinate in decimal, DMS and MGRS, and the exact CoT type it will export as.</li>
+        <li><strong>Affiliation</strong> — seven buttons, click to change.</li>
+        <li><strong>Type / role</strong> — unit types, sites, waypoint, or a coloured spot dot.</li>
+        <li><strong>Layer</strong> — move it, including to a new layer.</li>
+        <li><strong>Notes</strong> — free text; becomes the marker's remarks in ATAK.</li>
+        <li><strong>Attachments</strong> — photos or files, which travel inside the data package and open from the marker in ATAK. Large images are downscaled automatically so packages stay transferable.</li>
+        <li><strong>Move (drag)</strong> to reposition it, <strong>Delete</strong> to remove it, and the tick box to include it in a selected-points export.</li>
+      </ul>
+      <h3>Team iconset (ATAK)</h3>
+      <p>
+        If your ATAK devices already carry a custom iconset, copy an icon's path out of ATAK's
+        Iconset Manager — it looks like
+        <code>34ae1613-…/Ops/vcp.png</code> — and add it under
+        <span class="ui">Team iconset (ATAK)</span> with a name and a stand-in colour. It then
+        appears in every type dropdown. Points using it export with that
+        <code>iconsetpath</code>, so they render as your own symbol on the device; on this map they
+        show as a coloured pin. Custom icons are saved with the project.
+      </p>
+    </section>
+
+    <section id="importing">
+      <h2><span class="num">05</span><span>Bringing coordinates in</span></h2>
+      <hr class="h2rule">
+      <p>
+        Anything can be dropped straight onto the map, or opened with
+        <span class="ui">Load / import…</span>. Anything containing points asks
+        <strong>which layer</strong> first — an existing one, or a new layer named after the file.
+        Where a file also holds routes or areas, you can skip its points and still take the rest.
+      </p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Drop this</th><th>And you get</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">.zip</td><td>A WhatsApp chat export — see below. Any other zip is unpacked and its KML / CSV / GPX / GeoJSON imported</td></tr>
+            <tr><td class="mono">.csv</td><td>Points. Needs <code>lat</code>+<code>lon</code> columns or an <code>mgrs</code> column, with headers in row 1</td></tr>
+            <tr><td class="mono">.kml / .kmz</td><td>Placemark points, LineStrings as routes, Polygons as areas — geometry kept exactly</td></tr>
+            <tr><td class="mono">.gpx</td><td>Waypoints as points; tracks and routes as routes, geometry kept exactly</td></tr>
+            <tr><td class="mono">.geojson</td><td>Points, LineStrings as routes, Polygons as areas</td></tr>
+            <tr><td class="mono">.docx / .pptx / .txt</td><td>The text is pulled out and scanned for coordinates</td></tr>
+            <tr><td class="mono">.tif / .tiff</td><td>A georeferenced GeoTIFF, placed as an imagery overlay</td></tr>
+            <tr><td class="mono">.png / .jpg</td><td>An image overlay you position by hand — a map photo, a screenshot, an annex sketch</td></tr>
+            <tr><td class="mono">.json</td><td>A saved PED project — replaces what is open</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>CSV columns</h3>
+      <p>
+        Beyond position, the importer recognises <code>name</code>, <code>id</code>,
+        <code>layer</code>, <code>affiliation</code>, <code>role</code>, <code>notes</code> and
+        <code>color</code> (and common synonyms — <code>callsign</code>, <code>group</code>,
+        <code>remarks</code>, <code>lng</code>, <code>y</code>/<code>x</code>). A
+        <code>layer</code> column wins per row and creates layers as needed, so a spreadsheet can
+        arrive pre-sorted.
+      </p>
+
+      <h3>Bulk paste — the everyday route</h3>
+      <p>
+        Paste anything into <span class="ui">Bulk paste</span> — WhatsApp messages, a sitrep, text
+        out of Word or an email — and press <span class="ui">Scan for coordinates</span>. Every
+        coordinate found comes back as a tick-list: names already filled in from the surrounding
+        words, anything within ~15&nbsp;m of an existing point flagged <span class="ui">dup?</span>.
+        Untick the false hits, fix the names, choose the layer, and
+        <span class="ui">Add ticked points</span>.
+      </p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Format read</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>Decimal</td><td class="mono">9.0765, 7.3986</td></tr>
+            <tr><td>Labelled</td><td class="mono">Lat: 12.47464200, Long: 7.65343700</td></tr>
+            <tr><td>DMS</td><td class="mono">9°04′33.6″N 7°23′52.8″E</td></tr>
+            <tr><td>MGRS</td><td class="mono">32PLU 47680 65126</td></tr>
+            <tr><td>Shared pin</td><td class="mono">maps.google.com/?q=11.7642,7.5531</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        A number needs at least two decimal places to count, which is what stops dates, version
+        numbers and phone numbers being read as positions. Where one message carries several
+        locations, each one is named from the words next to <em>it</em> rather than from the whole
+        sentence, so a report that runs "…&nbsp;X located around Dutsinma Road on Lat/Long&nbsp;…,
+        and Y located around Kofar Fada Kuki on Lat/Long&nbsp;…" gives you two properly distinct
+        points.
+      </p>
+
+      <h3>WhatsApp chat exports</h3>
+      <p>
+        In WhatsApp, open the chat → <strong>Export chat</strong> → <strong>With media</strong> if
+        you want the photos. Drop the <code>.zip</code> straight onto the map. Out of it you get:
+      </p>
+      <ul>
+        <li><strong>Shared pins</strong> as well as typed coordinates.</li>
+        <li><strong>A name</strong> for each point, taken from the message beside the pin — or the sender and time if there is nothing to go on.</li>
+        <li><strong>Notes</strong> carrying the sender and timestamp, the phone number quoted with that location, and the original message text — all of which end up in the ATAK remarks.</li>
+        <li><strong>Photos</strong> sent with a pin, attached to that point and travelling inside the data package.</li>
+      </ul>
+      <div class="note note--watch">
+        <p class="note-l">Short links carry nothing</p>
+        <p>
+          A pin shared as a <code>maps.app.goo.gl</code> link contains no coordinates at all — not
+          in the export, not anywhere offline. The scan counts them and tells you how many it found
+          so nothing goes unnoticed; open those links in a browser and paste the full URL from the
+          address bar. Photos sent normally have their location data stripped by WhatsApp, so a
+          photo without a pin beside it gives no position either.
+        </p>
+      </div>
+    </section>
+
+    <section id="routes">
+      <h2><span class="num">06</span><span>Routes</span></h2>
+      <hr class="h2rule">
+      <p>
+        Paste a Google Maps directions link — a full <code>.../maps/dir/…</code> URL that contains
+        coordinates — name it, and press <span class="ui">Add route</span>. Stops are read in order
+        and each leg is snapped along roads at full resolution, around 5&nbsp;m fidelity. Set
+        <span class="ui">Planning speed</span> and every route card shows distance and an ETA.
+      </p>
+      <p>
+        Each route card carries <span class="ui">Edit stops</span> (drag the stops, the route
+        re-snaps), <span class="ui">Reverse</span>, <span class="ui">Profile</span> for a terrain
+        cross-section of the whole route, and its own TAK export.
+      </p>
+      <div class="note note--watch">
+        <p class="note-l">Road choice, not road accuracy</p>
+        <p>
+          Snapping follows OpenStreetMap routing. The line sits on the road accurately, but at some
+          junctions OSM will choose a different road than Google would. Eyeball the route before
+          anyone drives it. For Google's <em>exact</em> line, build the route in <strong>Google My
+          Maps</strong>, export it to KML/KMZ, and drop that on the map — imported geometry is kept
+          untouched, and the route list labels it as imported.
+        </p>
+      </div>
+      <p>
+        A shared <code>maps.app.goo.gl</code> short link carries no coordinates; the tool opens it
+        for you so you can copy the full URL out of the address bar.
+      </p>
+    </section>
+
+    <section id="areas">
+      <h2><span class="num">07</span><span>Threat areas</span></h2>
+      <hr class="h2rule">
+      <p>
+        <span class="ui">Draw area</span> — click each corner, then double-click or press
+        <kbd>Enter</kbd> to close it. <span class="ui">Draw circle</span> — click the centre, then
+        click the edge to set the radius. <kbd>Esc</kbd> cancels either.
+      </p>
+      <p>
+        Each shape can be renamed, recoloured and given notes, and exports as a TAK drawing —
+        polygons as <code>u-d-f</code>, circles as <code>u-d-c-c</code> with a true radius, so they
+        arrive as editable shapes rather than pictures.
+      </p>
+    </section>
+
+    <section id="imagery">
+      <h2><span class="num">08</span><span>Imagery overlays</span></h2>
+      <hr class="h2rule">
+      <p>
+        <span class="ui">Add imagery (GeoTIFF / image)…</span> — or drop the file on the map. A
+        georeferenced <code>.tif</code> places itself. A plain PNG or JPG (a screenshot, an air
+        photo, a scanned annex) is placed with three corner handles you drag until it sits right.
+      </p>
+      <p>
+        Each overlay gets its own transparency slider and saves with the project.
+        <span class="ui">Export TAK package — all imagery</span> sends them to ATAK as KMZ ground
+        overlays (GRGs), and they are included when you export everything in one package.
+      </p>
+      <div class="note note--watch">
+        <p class="note-l">Package size</p>
+        <p>
+          Imagery is by far the biggest thing you can put in a package. Large overlays make files
+          that are slow to move onto a device and can push the browser autosave past its limit —
+          the <code>.json</code> save always keeps them.
+        </p>
+      </div>
+    </section>
+
+    <section id="select">
+      <h2><span class="num">09</span><span>Select &amp; bulk edit</span></h2>
+      <hr class="h2rule">
+      <p>This is what makes the tool worth using over editing in ATAK. Select points by:</p>
+      <ul>
+        <li>the tick box in a marker's popup,</li>
+        <li><span class="ui">Box select — drag a rectangle</span>, or just <kbd>Shift</kbd>+drag on the map,</li>
+        <li><span class="ui">Select points in view</span> — everything currently on screen.</li>
+      </ul>
+      <p>Then, on the whole selection at once:</p>
+      <ul>
+        <li>change the icon — any affiliation, type or spot-dot colour,</li>
+        <li><span class="ui">Move selected to layer…</span>, existing or new,</li>
+        <li><span class="ui">Delete selected points</span>, undone with <kbd>Ctrl</kbd>+<kbd>Z</kbd>,</li>
+        <li>export just the selection as a package, KML or CSV.</li>
+      </ul>
+    </section>
+
+    <section id="export">
+      <h2><span class="num">10</span><span>Exporting to TAK</span></h2>
+      <hr class="h2rule">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Export</th><th>What is in it</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">TAK — selected points</td><td>Only the ticked points, with their notes and attachments</td></tr>
+            <tr><td class="mono">TAK — everything</td><td>Every point, route, area and imagery overlay in one package</td></tr>
+            <tr><td class="mono">TAK — per layer</td><td>One package per layer — send a team only their part</td></tr>
+            <tr><td class="mono">TAK — all imagery</td><td>Just the overlays, as KMZ ground overlays</td></tr>
+            <tr><td class="mono">KML (.kml)</td><td>Selected points, routes and areas for Google Earth / My Maps</td></tr>
+            <tr><td class="mono">CSV (.csv)</td><td>Selected points as a spreadsheet</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Getting a package into ATAK</h3>
+      <ul>
+        <li><strong>Android app:</strong> the export opens the share sheet — choose ATAK.</li>
+        <li><strong>ATAK, file already on the device:</strong> Import Manager → Local SD → pick the <code>.zip</code>.</li>
+        <li><strong>ATAK, moving it across:</strong> copy the zip into <code>atak/tools/datapackage</code>, then Import Manager.</li>
+        <li><strong>WinTAK:</strong> File → Import.</li>
+      </ul>
+      <h3>What arrives</h3>
+      <p>
+        Points come in as markers of the right affiliation and type, carrying your notes as remarks,
+        your attachments as files that open from the marker, and — for spot dots and team icons —
+        the right colour and iconset path. Routes arrive as TAK routes with their full geometry,
+        areas as editable shapes. Everything is marked to persist rather than expire.
+      </p>
+      <div class="note note--ops">
+        <p class="note-l">Re-exporting</p>
+        <p>
+          Export the same project twice and ATAK updates the items rather than duplicating them —
+          which is why the project <code>.json</code> is worth keeping. Change something here,
+          export again, and the picture on the device corrects itself.
+        </p>
+      </div>
+    </section>
+
+    <section id="app">
+      <h2><span class="num">11</span><span>The web link &amp; the Android app</span></h2>
+      <hr class="h2rule">
+      <h3>Opening it from a web link</h3>
+      <p>
+        The tool can also be published to a web address, so nobody has to be sent a file — open the
+        link and it is there, always the current version. On a phone or tablet, open it once and use
+        <strong>Add to Home Screen</strong> (Chrome: menu → Add to Home screen; Safari: the share
+        button). From then on it launches like an app and keeps working <strong>with no signal</strong>:
+        the tool, your saved work and every function are held on the device.
+      </p>
+      <div class="note note--watch">
+        <p class="note-l">Offline means the tool, not the map</p>
+        <p>
+          Basemap tiles come from the provider each time, so out of signal you get a blank map
+          background with all your points, routes and areas on it — exactly how the local HTML file
+          behaves today. Imagery you need in the field should be brought in as a GeoTIFF overlay,
+          which is stored with the project.
+        </p>
+      </div>
+      <p>
+        From a browser, exports download to the device's Downloads folder — open ATAK's
+        <strong>Import Manager → Local SD</strong> and pick the file from there.
+      </p>
+
+      <h3>The Android app</h3>
+      <p>
+        The app is the same tool wrapped for Android, so anything in this manual applies to both.
+        The one difference is exports: instead of downloading, they open the system share sheet, so
+        you can hand a package to ATAK on the same device without touching a cable.
+      </p>
+      <ul>
+        <li><strong>Installing:</strong> copy <code>PED_v1.7_debug.apk</code> to the device, open it from the Files app, allow installing unknown apps when asked.</li>
+        <li><strong>Updating:</strong> install the new APK over the old one. Your autosaved work survives.</li>
+        <li><strong>Permissions:</strong> internet only, for basemap tiles and road snapping. It is fully usable offline.</li>
+        <li><strong>Requirements:</strong> Android 7 or later.</li>
+      </ul>
+      <div class="note note--stop">
+        <p class="note-l">Before switching build machines</p>
+        <p>
+          Updates only install over the top while every APK is signed with the same key. An APK
+          built somewhere else has to be uninstalled first, which wipes the autosave. Save your
+          project to <code>.json</code> before any update you are unsure about.
+        </p>
+      </div>
+    </section>
+
+    <section id="opsec">
+      <h2><span class="num">12</span><span>What leaves the device</span></h2>
+      <hr class="h2rule">
+      <p>
+        Nothing you plot is ever uploaded. There is no account, no server, no sync. Points, routes,
+        areas, notes and photos exist only in the file you are working in and the packages you
+        export. What does go out is limited to the following, and each stops the moment you work
+        offline or leave that feature alone.
+      </p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Feature</th><th>Talks to</th><th>Sends</th></tr></thead>
+          <tbody>
+            <tr><td>Basemap tiles</td><td>Whichever provider you picked</td><td>The map area you are looking at</td></tr>
+            <tr><td><span class="ui">Snap to roads</span></td><td class="mono">router.project-osrm.org</td><td>The stops of that route</td></tr>
+            <tr><td>Imagery capture date</td><td>Esri metadata service</td><td>The point or view you asked about</td></tr>
+            <tr><td>Hillshade relief</td><td>Esri tiles</td><td>The map area you are looking at</td></tr>
+            <tr><td>Elevation profile</td><td class="mono">opentopodata.org</td><td>The sampled coordinates of the line</td></tr>
+            <tr><td>Open in Google Maps</td><td>Google Maps</td><td>That one coordinate, when you click the link</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        A Mapbox token you type is kept in that browser only and never written into a project file,
+        so a <code>.json</code> you send to a colleague carries no credentials. Work with an offline
+        basemap and snapping unticked and the tool makes no network requests at all.
+      </p>
+    </section>
+
+    <section id="symbology">
+      <h2><span class="num">A</span><span>Symbology &amp; CoT types</span></h2>
+      <hr class="h2rule">
+      <p>
+        A point's exported CoT type is built from its affiliation and its role. The popup always
+        shows the exact type before you export.
+      </p>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Affiliation</th><th>Frame</th><th class="mono">Type</th></tr></thead>
+          <tbody>
+            <tr><td><span class="swatch" style="background:#EE2222"></span>Hostile</td><td>Diamond</td><td class="mono">a-h-G</td></tr>
+            <tr><td><span class="swatch" style="background:#EE2222"></span>Suspect</td><td>Dashed diamond</td><td class="mono">a-s-G</td></tr>
+            <tr><td><span class="swatch" style="background:#F5C400"></span>Unknown</td><td>Quatrefoil</td><td class="mono">a-u-G</td></tr>
+            <tr><td><span class="swatch" style="background:#F5C400"></span>Pending</td><td>Dashed quatrefoil</td><td class="mono">a-p-G</td></tr>
+            <tr><td><span class="swatch" style="background:#2FA82F"></span>Neutral</td><td>Square</td><td class="mono">a-n-G</td></tr>
+            <tr><td><span class="swatch" style="background:#2E77D0"></span>Friendly</td><td>Rectangle</td><td class="mono">a-f-G</td></tr>
+            <tr><td><span class="swatch" style="background:#2E77D0"></span>Assumed friend</td><td>Dashed rectangle</td><td class="mono">a-a-G</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Type / role</th><th class="mono">Exports as</th></tr></thead>
+          <tbody>
+            <tr><td>Point (generic)</td><td class="mono">a-{aff}-G</td></tr>
+            <tr><td>Infantry</td><td class="mono">a-{aff}-G-U-C-I</td></tr>
+            <tr><td>Armour / vehicle</td><td class="mono">a-{aff}-G-U-C-A</td></tr>
+            <tr><td>Artillery</td><td class="mono">a-{aff}-G-U-C-F</td></tr>
+            <tr><td>Reconnaissance</td><td class="mono">a-{aff}-G-U-C-R</td></tr>
+            <tr><td>Engineer</td><td class="mono">a-{aff}-G-U-C-E</td></tr>
+            <tr><td>Installation / site</td><td class="mono">a-{aff}-G-I</td></tr>
+            <tr><td>Air track</td><td class="mono">a-{aff}-A</td></tr>
+            <tr><td>Sea / surface</td><td class="mono">a-{aff}-S</td></tr>
+            <tr><td>Waypoint</td><td class="mono">b-m-p-w</td></tr>
+            <tr><td>Spot-map dot (13 colours + custom)</td><td class="mono">b-m-p-s-m</td></tr>
+            <tr><td>Team iconset icon</td><td class="mono">a-u-G + iconsetpath</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Waypoints and spot dots have no affiliation — they are markers, so the affiliation buttons
+        don't apply. A dot's colour travels with it and ATAK draws it filled in that colour.
+      </p>
+    </section>
+
+    <section id="keys">
+      <h2><span class="num">B</span><span>Keyboard &amp; mouse</span></h2>
+      <hr class="h2rule">
+      <div class="tw">
+        <table>
+          <thead><tr><th>Action</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Select a group of points</td><td><kbd>Shift</kbd> + drag a box on the map</td></tr>
+            <tr><td>Undo a deletion</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> — up to 25 deletions back</td></tr>
+            <tr><td>Finish an area</td><td>Double-click the last corner, or <kbd>Enter</kbd></td></tr>
+            <tr><td>Cancel picking or drawing</td><td><kbd>Esc</kbd></td></tr>
+            <tr><td>Reposition a point</td><td>Popup → <span class="ui">Move (drag)</span>, then drag it</td></tr>
+            <tr><td>Resize the sidebar</td><td>Drag its right edge; double-click to reset</td></tr>
+            <tr><td>Import anything</td><td>Drop the file anywhere on the map</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="gotchas">
+      <h2><span class="num">C</span><span>Things that catch people out</span></h2>
+      <hr class="h2rule">
+      <ul>
+        <li><strong>Short links are empty.</strong> <code>maps.app.goo.gl</code> pins carry no coordinates. Open them and copy the full URL.</li>
+        <li><strong>Autosave is not a backup.</strong> It lives in one browser on one device. Save the <code>.json</code>.</li>
+        <li><strong>Start from the same project file</strong> each time, or re-exports arrive in ATAK as duplicates instead of updates.</li>
+        <li><strong>Snapped routes follow OSM's road choice</strong>, which is occasionally not Google's. Look at the line before it is driven.</li>
+        <li><strong>30&nbsp;m elevation misses narrow gulleys.</strong> It is honest about valleys, not about erosion channels.</li>
+        <li><strong>WhatsApp strips photo location data.</strong> A photo alone is not a position.</li>
+        <li><strong>Imagery dates only exist on the Esri basemaps.</strong> Google and Mapbox don't publish theirs.</li>
+        <li><strong>Big imagery makes big packages</strong> — check the file size before trying to move one onto a device in the field.</li>
+        <li><strong>Spot-check a new TAK build</strong> with one point, one route and one area before pushing to the team.</li>
+      </ul>
+    </section>
+
+    <section id="versions">
+      <h2><span class="num">D</span><span>Version history</span></h2>
+      <hr class="h2rule">
+      <div class="tw">
+        <table>
+          <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1.7</td><td class="num">28 Aug 2026</td><td>The phone number quoted with a location goes into that point's notes — each point gets its own number, not every number in the message</td></tr>
+            <tr><td class="mono">1.6</td><td class="num">28 Aug 2026</td><td>Several locations in one sitrep sentence now get individual names taken from the words beside each coordinate; the original message is kept in the notes</td></tr>
+            <tr><td class="mono">1.5</td><td class="num">28 Aug 2026</td><td>WhatsApp chat exports (.zip): shared pins read, names from surrounding messages, sender and time in notes, photos attached to their point. Any other zip is unpacked and imported</td></tr>
+            <tr><td class="mono">1.4</td><td class="num">25 Aug 2026</td><td>Change a point's layer from its popup; imports ask which layer to use — existing or new; bulk move to a new layer</td></tr>
+            <tr><td class="mono">1.3</td><td class="num">25 Aug 2026</td><td>Hillshade relief and the elevation profile tool</td></tr>
+            <tr><td class="mono">1.2</td><td class="num">24 Aug 2026</td><td>Sat hybrid, Google hybrid and Mapbox basemaps; Esri imagery capture dates in the corner chip and on click</td></tr>
+            <tr><td class="mono">1.0</td><td class="num">23 Aug 2026</td><td>First side-loadable Android build; bulk coordinate scanning from pasted text, Word and PowerPoint</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        PED Field Manual · covers version 1.7, 28 August 2026. Kept alongside
+        <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
+        changes.
+      </p>
+      <p>
+        PED tool and this manual © 2026 RBM Global. All rights reserved. Proprietary — supplied
+        for the use of RBM Global and its project teams, not for redistribution. The tool bundles
+        third-party open-source components under permissive licences; their notices are in the
+        header of <code>PED_tool.html</code> and in <code>NOTICES.md</code>.
+      </p>
+    </footer>
+  </main>
+</div>
