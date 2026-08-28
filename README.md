@@ -17,9 +17,14 @@ Nothing anyone plots leaves their own device.
 | `icon-192.png`, `icon-512.png` | Home-screen icons |
 | `NOTICES.md` | Third-party licences |
 
-## Published with GitHub Pages
+## Published
 
-Settings → Pages → Source: Deploy from a branch → `main` / root.
+**Live: https://rbmglobal.co.uk/ped-tool/** · manual at `/manual.html`
+
+Served by GitHub Pages from this repo (Settings → Pages → Deploy from a branch → `main` / root).
+It sits under the domain because `RBMGlobal.github.io` is the organisation's site repo, which puts
+every project repo at `rbmglobal.co.uk/<repo>/`. The old `rbmglobal.github.io/ped-tool/` address
+still works and redirects here.
 Live at `https://rbmglobal.github.io/ped-tool/` (and at the custom domain once DNS points here).
 
 A GitHub Pages site is public — anyone with the URL can open it and read the source. If you later
