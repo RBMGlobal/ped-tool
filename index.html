@@ -399,6 +399,11 @@
     <button class="toolbtn" id="expTakLayersBtn">Export TAK — one package per layer</button>
     <button class="toolbtn" id="expKmlBtn" disabled>Export KML (.kml)</button>
     <button class="toolbtn" id="expCsvBtn" disabled>Export CSV (.csv)</button>
+    <div class="subhead">Air Navigation Pro</div>
+    <button class="toolbtn" id="expGpxBtn">Export GPX (.gpx)</button>
+    <button class="toolbtn" id="expAnpBtn">Export Air Navigation CSV</button>
+    <label class="selrow" style="margin-top:6px"><input type="checkbox" id="anpElev"> Look up ground elevations (sends the coordinates out)</label>
+    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. Both use your selection if you have one, otherwise every point. Elevations are 0 unless you tick the box.</div>
     </details>
 
     <details class="sec" id="sec-help">
@@ -2682,6 +2687,128 @@ document.getElementById('expAllBtn').addEventListener('click', exportEverything)
 document.getElementById('expTakLayersBtn').addEventListener('click', exportTAKLayers);
 document.getElementById('expKmlBtn').addEventListener('click', exportKML);
 document.getElementById('expCsvBtn').addEventListener('click', exportCSV);
+
+/* ---------- Air Navigation Pro exports ----------
+   GPX imports directly on the device (Share -> Air Navigation Pro). The CSV is the
+   Air Navigation Manager bulk waypoint format, which additionally understands tags,
+   icons and colours — so layers survive the trip as tags.
+   Spec: manager.airnavigation.aero/docs/waypoints.html */
+const ANP_ICONS = ['factory','fuel','horseranch','hospital','lighthouse','powerline','residential',
+                   'silo','stadium','circle','disc','polygon','square','star','triangle'];
+// Air Navigation has no red, so hostile/suspect land on Pink — the most alerting colour it offers.
+const ANP_COLOURS = { Yellow:'#FFEB3B', Teal:'#009688', Purple:'#9C27B0', Pink:'#E91E63',
+                      LightBlue:'#03A9F4', Green:'#4CAF50', Brown:'#795548', Blue:'#2196F3',
+                      Asphalt:'#37474F', Grey:'#9E9E9E' };
+function anpNearestColour(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex||'')); if (!m) return 'Grey';
+  const v = parseInt(m[1], 16), r = v>>16, g = (v>>8)&255, b = v&255;
+  let best = 'Grey', bd = Infinity;
+  for (const [name, h] of Object.entries(ANP_COLOURS)){
+    const n = parseInt(h.slice(1), 16);
+    const d = Math.pow(r-(n>>16),2) + Math.pow(g-((n>>8)&255),2) + Math.pow(b-(n&255),2);
+    if (d < bd){ bd = d; best = name; }
+  }
+  return best;
+}
+function anpIconFor(pt, ly){
+  const k = roleKeyOf(pt, ly), r = ROLES[k];
+  if (r.dot) return 'disc';
+  if (k === 'installation') return 'square';
+  if (k === 'air') return 'star';
+  if (k === 'sea') return 'polygon';
+  if (k === 'waypoint') return 'triangle';
+  if (r.group === 'Units') return 'triangle';
+  return 'circle';
+}
+// Air Navigation accepts "a-zA-Z0-9-_. /,[]!?@*+" — commas are stripped too, so the CSV can
+// never be mis-split by their parser whichever separator it decides we used.
+function anpText(s, max){
+  return String(s||'').replace(/[^a-zA-Z0-9\-_. /\[\]!?@*+]+/g, ' ')
+    .replace(/\s+/g, ' ').trim().slice(0, max || 60);
+}
+function pointsForExport(){
+  const sel = selectedPoints();
+  return sel.length ? sel : allMarkers.slice();
+}
+async function anpElevations(pts){
+  if (!document.getElementById('anpElev').checked) return { elevs: pts.map(() => 0), src: '' };
+  try {
+    toast('Looking up elevations…', 4000);
+    const out = [], src = [];
+    for (let i = 0; i < pts.length; i += 90){          // the service caps how many fit in one call
+      if (i) await new Promise(r => setTimeout(r, 1100));   // and rate-limits to ~1 call a second
+      const chunk = pts.slice(i, i + 90).map(r => [r.pt.lat, r.pt.lon]);
+      const got = await fetchElevations(chunk);
+      out.push(...got.elevs); src[0] = got.src;
+    }
+    return { elevs: out.map(e => Math.round(e || 0)), src: src[0] || '' };
+  } catch(e){
+    toast('Elevation lookup failed — exporting with 0 m instead.', 5000);
+    return { elevs: pts.map(() => 0), src: '' };
+  }
+}
+async function exportGPX(){
+  const pts = pointsForExport();
+  const rts = Object.values(routes);
+  if (!pts.length && !rts.length){ toast('Nothing to export yet.'); return; }
+  const { elevs, src } = await anpElevations(pts);
+  const t = new Date().toISOString();
+  let x = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="PED tool" xmlns="http://www.topografix.com/GPX/1/1">\n`;
+  x += `  <metadata><name>PED tool export</name><time>${t}</time></metadata>\n`;
+  pts.forEach(({pt, ly}, i) => {
+    const desc = [pt.notes || '', `${ly.name} - ${labelOf(pt, ly)}`].filter(Boolean).join(' | ');
+    x += `  <wpt lat="${pt.lat}" lon="${pt.lon}">\n`;
+    if (elevs[i]) x += `    <ele>${elevs[i]}</ele>\n`;
+    x += `    <name>${esc((pt.id ? pt.id + ' ' : '') + pt.name)}</name>\n`;
+    if (desc) x += `    <desc>${esc(desc)}</desc>\n`;
+    x += `    <type>${esc(ly.name)}</type>\n  </wpt>\n`;
+  });
+  // A route in a nav app is a list of stops to fly, not 1500 road vertices — so <rte> carries the
+  // stops and <trk> carries the traced line, and each app takes the one it understands.
+  rts.forEach(rt => {
+    x += `  <rte>\n    <name>${esc(rt.name)}</name>\n`;
+    (rt.waypoints || []).forEach((w, i) => {
+      x += `    <rtept lat="${w.lat}" lon="${w.lon}"><name>${esc(rt.name + ' ' + (i + 1))}</name></rtept>\n`;
+    });
+    x += `  </rte>\n`;
+  });
+  rts.forEach(rt => {
+    const path = [].concat(...(rt.segments || []));
+    if (path.length < 2) return;
+    x += `  <trk>\n    <name>${esc(rt.name)}</name>\n    <trkseg>\n`;
+    path.forEach(c => { x += `      <trkpt lat="${c[0]}" lon="${c[1]}"></trkpt>\n`; });
+    x += `    </trkseg>\n  </trk>\n`;
+  });
+  x += `</gpx>\n`;
+  download(new Blob([x], { type: 'application/gpx+xml' }), 'PED_' + fdate() + '.gpx');
+  toast(`GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : ''}${src ? ` (elevations: ${src})` : ''}. On the device: Share the file to Air Navigation Pro.`, 7000);
+}
+async function exportANPCsv(){
+  const pts = pointsForExport();
+  if (!pts.length){ toast('No points to export yet.'); return; }
+  const { elevs, src } = await anpElevations(pts);
+  const head = ['waypoint_id','waypoint_name','waypoint_type','waypoint_elevation',
+                'waypoint_latitude','waypoint_longitude','waypoint_tag','waypoint_icon','waypoint_color'];
+  const used = new Set();
+  const rows = pts.map(({pt, ly}, i) => {
+    let id = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || ('WPT' + (i + 1));
+    let base = id, n = 2;
+    while (used.has(id.toUpperCase())) id = (base + n++).slice(0, 12);
+    used.add(id.toUpperCase());
+    const r = ROLES[roleKeyOf(pt, ly)];
+    const colour = r.dot || r.custom ? anpNearestColour(colorOf(pt, ly))
+                 : ({ hostile:'Pink', suspect:'Pink', unknown:'Yellow', pending:'Yellow',
+                      neutral:'Green', friendly:'Blue', assumedfriend:'Blue' })[affKeyOf(pt, ly)] || 'Grey';
+    return [id, anpText(pt.name, 50) || id, 3, elevs[i] || 0, pt.lat, pt.lon,
+            anpText(ly.name, 30), anpIconFor(pt, ly), colour];
+  });
+  const csv = [head].concat(rows)
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  download(new Blob([csv], { type: 'text/csv' }), 'PED_AirNav_' + fdate() + '.csv');
+  toast(`Air Navigation CSV exported — ${pts.length} waypoint${pts.length===1?'':'s'}, layers kept as tags${src ? `, elevations from ${src}` : ', elevation 0'}. Import it in Air Navigation Manager.`, 7000);
+}
+document.getElementById('expGpxBtn').addEventListener('click', exportGPX);
+document.getElementById('expAnpBtn').addEventListener('click', exportANPCsv);
 /* bulk edit — apply an icon or a layer move to every selected point */
 const bulkTypeEl = document.getElementById('bulkType'), bulkDotEl = document.getElementById('bulkDot');
 function affRoleOptionsHTML(){
