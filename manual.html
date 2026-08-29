@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.7 · 28 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.8 · 29 August 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,9 +260,9 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool + app v1.7</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.8</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
-      <div class="fact"><dt>Feeds</dt><dd>ATAK · WinTAK</dd></div>
+      <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
     </dl>
   </div>
@@ -700,6 +700,8 @@
             <tr><td class="mono">TAK — all imagery</td><td>Just the overlays, as KMZ ground overlays</td></tr>
             <tr><td class="mono">KML (.kml)</td><td>Selected points, routes and areas for Google Earth / My Maps</td></tr>
             <tr><td class="mono">CSV (.csv)</td><td>Selected points as a spreadsheet</td></tr>
+            <tr><td class="mono">GPX (.gpx)</td><td>Points as waypoints, routes as stops plus their traced line — for Air Navigation Pro and any GPS app</td></tr>
+            <tr><td class="mono">Air Navigation CSV</td><td>Waypoints with layer as tag, icon and colour — for bulk import via Air Navigation Manager</td></tr>
           </tbody>
         </table>
       </div>
@@ -710,6 +712,40 @@
         <li><strong>ATAK, moving it across:</strong> copy the zip into <code>atak/tools/datapackage</code>, then Import Manager.</li>
         <li><strong>WinTAK:</strong> File → Import.</li>
       </ul>
+      <h3>Getting points into Air Navigation Pro</h3>
+      <p>
+        Two ways, depending on whether you are on the tablet or at a computer.
+      </p>
+      <ul>
+        <li><strong>On the device — <span class="ui">Export GPX (.gpx)</span>.</strong> Put the file on
+          the phone or tablet (email it, drop it in cloud storage, whatever you already do), open it,
+          and choose <strong>Share</strong> or <strong>Open with → Air Navigation Pro</strong>. Your
+          points arrive as user waypoints. Each route arrives twice over: as a route of its stops,
+          which is what you navigate, and as a track of the full driven line, which is what you look
+          at. GPX is a standard format, so the same file works in most other GPS apps.</li>
+        <li><strong>At a computer — <span class="ui">Export Air Navigation CSV</span>.</strong> Import
+          it in <strong>Air Navigation Manager</strong>. This one carries more: each point's layer
+          becomes its <em>tag</em>, so your layers survive as groups you can filter, and every icon
+          and colour is translated to the nearest one Air Navigation offers.</li>
+      </ul>
+      <div class="note note--watch">
+        <p class="note-l">Two things the translation changes</p>
+        <p>
+          Air Navigation's palette has no red, so hostile and suspect points come across as
+          <strong>Pink</strong> — still the most alerting colour available, but check it reads the way
+          you expect before briefing from it. And its waypoint names accept a narrower set of
+          characters than the tool does, so brackets, dashes and accents are stripped out:
+          "BP 3 (Dutsinma Rd)" becomes "BP 3 Dutsinma Rd".
+        </p>
+      </div>
+      <p>
+        Waypoint elevations are exported as 0 unless you tick
+        <span class="ui">Look up ground elevations</span>, which fetches them from the same terrain
+        service the elevation profile uses — so it needs internet, and the coordinates go to that
+        service. Both exports use your current selection if you have one, and every point if you
+        don't.
+      </p>
+
       <h3>What arrives</h3>
       <p>
         Points come in as markers of the right affiliation and type, carrying your notes as remarks,
@@ -902,6 +938,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.8</td><td class="num">29 Aug 2026</td><td>Air Navigation Pro exports — GPX waypoints and routes for the app itself, and an Air Navigation Manager CSV that keeps layers as tags with icons and colours mapped across. A Manual link in the tool's header</td></tr>
             <tr><td class="mono">1.7</td><td class="num">28 Aug 2026</td><td>The phone number quoted with a location goes into that point's notes — each point gets its own number, not every number in the message</td></tr>
             <tr><td class="mono">1.6</td><td class="num">28 Aug 2026</td><td>Several locations in one sitrep sentence now get individual names taken from the words beside each coordinate; the original message is kept in the notes</td></tr>
             <tr><td class="mono">1.5</td><td class="num">28 Aug 2026</td><td>WhatsApp chat exports (.zip): shared pins read, names from surrounding messages, sender and time in notes, photos attached to their point. Any other zip is unpacked and imported</td></tr>
@@ -916,7 +953,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.7, 28 August 2026. Kept alongside
+        PED Field Manual · covers version 1.8, 29 August 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
