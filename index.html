@@ -402,8 +402,10 @@
     <div class="subhead">Air Navigation Pro</div>
     <button class="toolbtn" id="expGpxBtn">Export GPX (.gpx)</button>
     <button class="toolbtn" id="expAnpBtn">Export Air Navigation CSV</button>
+    <button class="toolbtn" id="expWaBtn">Copy for WhatsApp</button>
+    <textarea id="waOut" rows="6" style="display:none;margin-top:6px" spellcheck="false" readonly></textarea>
     <label class="selrow" style="margin-top:6px"><input type="checkbox" id="anpElev"> Look up ground elevations (sends the coordinates out)</label>
-    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>To send just a few locations</b>, select them first — tick them in their popups, drag a box, or “Select points in view” — and both exports carry only those, with no routes attached. With nothing selected you get every point, and the GPX also carries your routes. Elevations are 0 unless you tick the box.</div>
+    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>Copy for WhatsApp</b> builds a message you paste straight into a chat — a readable list of the positions, plus an <code>airnavpro://</code> link that drops all of them into Air Navigation Pro at once, with no file to save and no share sheet. WhatsApp often shows an app link as plain text rather than something tappable, so the message tells the pilot to paste it into Safari if it will not tap — worth mentioning to him the first time. <b>To send just a few locations</b>, select them first — tick them in their popups, drag a box, or “Select points in view” — and all three carry only those, with no routes attached. With nothing selected you get every point, and the GPX also carries your routes. Elevations are 0 unless you tick the box.</div>
     </details>
 
     <details class="sec" id="sec-help">
@@ -2811,6 +2813,53 @@ async function exportANPCsv(){
 }
 document.getElementById('expGpxBtn').addEventListener('click', exportGPX);
 document.getElementById('expAnpBtn').addEventListener('click', exportANPCsv);
+
+/* ---------- Copy for WhatsApp ----------
+   Air Navigation Pro registers an airnavpro:// URL scheme. "add-waypoints" takes several at once:
+     airnavpro://add-waypoints?coordinates=wgs84-decimal&waypoints=<lat>_<lon>,<elev>,<id>,<name>;…
+   so a pasted message becomes a one-tap import with no file to shuffle around.
+   Spaces are percent-encoded because iOS and WhatsApp stop detecting a link at the first space,
+   and commas/semicolons are stripped from names because those are the format's own separators.
+   Docs: airnavigation.aero/manual/en/html/manual/import-export-data.html */
+function urlField(s){
+  return String(s || '').replace(/[,;]/g, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/[%&#?+]/g, '').replace(/ /g, '%20');
+}
+function anpDeepLink(pts, elevs){
+  const used = new Set();
+  const wps = pts.map(({pt, ly}, i) => {
+    let id = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || ('WP' + (i + 1));
+    let base = id, n = 2;
+    while (used.has(id.toUpperCase())) id = (base + n++).slice(0, 12);
+    used.add(id.toUpperCase());
+    const name = urlField(anpText(pt.name, 40)) || id;
+    return `${pt.lat.toFixed(6)}_${pt.lon.toFixed(6)},${(elevs[i] || 0).toFixed(1)},${urlField(id)},${name}`;
+  }).join(';');
+  return 'airnavpro://add-waypoints?coordinates=wgs84-decimal&waypoints=' + wps;
+}
+async function copyForWhatsApp(){
+  const pts = pointsForExport();
+  if (!pts.length){ toast('No points to send yet.'); return; }
+  const { elevs, src } = await anpElevations(pts);
+  const lines = pts.map(({pt}, i) => `${i + 1}. ${pt.name} — ${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}`);
+  const msg = [
+    `${pts.length} location${pts.length === 1 ? '' : 's'}:`,
+    '',
+    ...lines,
+    '',
+    'Add ' + (pts.length === 1 ? 'it' : 'them') + ' to Air Navigation Pro — tap the link, or paste it into Safari:',
+    anpDeepLink(pts, elevs)
+  ].join('\n');
+  const out = document.getElementById('waOut');
+  out.style.display = 'block'; out.value = msg;
+  let copied = false;
+  try { await navigator.clipboard.writeText(msg); copied = true; }
+  catch(e){ try { out.select(); copied = document.execCommand('copy'); } catch(e2){} }
+  toast(copied
+    ? `Copied — paste it into WhatsApp. ${pts.length} location${pts.length===1?'':'s'}${src ? `, elevations from ${src}` : ''}. The pilot taps the link to add them to Air Navigation Pro.`
+    : 'Select the text below and copy it — the browser would not let me use the clipboard.', 7000);
+}
+document.getElementById('expWaBtn').addEventListener('click', copyForWhatsApp);
 /* bulk edit — apply an icon or a layer move to every selected point */
 const bulkTypeEl = document.getElementById('bulkType'), bulkDotEl = document.getElementById('bulkDot');
 function affRoleOptionsHTML(){

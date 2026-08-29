@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.8 · 29 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.9 · 29 August 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.8</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.9</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -702,6 +702,7 @@
             <tr><td class="mono">CSV (.csv)</td><td>Selected points as a spreadsheet</td></tr>
             <tr><td class="mono">GPX (.gpx)</td><td>Points as waypoints, routes as stops plus their traced line — for Air Navigation Pro and any GPS app</td></tr>
             <tr><td class="mono">Air Navigation CSV</td><td>Waypoints with layer as tag, icon and colour — for bulk import via Air Navigation Manager</td></tr>
+            <tr><td class="mono">Copy for WhatsApp</td><td>A message you can paste straight into a chat: the locations written out, plus a link that adds them to Air Navigation Pro</td></tr>
           </tbody>
         </table>
       </div>
@@ -752,8 +753,53 @@
         Waypoint elevations are exported as 0 unless you tick
         <span class="ui">Look up ground elevations</span>, which fetches them from the same terrain
         service the elevation profile uses — so it needs internet, and the coordinates go to that
-        service. Both exports use your current selection if you have one, and every point if you
-        don't.
+        service. All three of these use your current selection if you have one, and every point if
+        you don't.
+      </p>
+
+      <h3>Sending locations over WhatsApp</h3>
+      <p>
+        <span class="ui">Copy for WhatsApp</span> is for the case where there is no time to move a
+        file about: you need a pilot to have three grids on his iPad in the next two minutes. Select
+        the points, press the button, and the message is on your clipboard — paste it into the chat
+        and send.
+      </p>
+      <p>What the pilot receives is in two halves, and either one on its own is enough:</p>
+      <ul>
+        <li><strong>The locations written out</strong> — numbered, named, with decimal latitude and
+          longitude to five places. Readable on any phone, forwardable to anyone, and still useful
+          if the person has no Air Navigation Pro at all.</li>
+        <li><strong>A link that loads them into the app</strong> — an
+          <code>airnavpro://add-waypoints</code> link carrying every location, its elevation, a short
+          identifier and its name. Opening it on a device with Air Navigation Pro installed adds them
+          all as user waypoints in one go, with nothing to download and no internet needed at the
+          far end.</li>
+      </ul>
+      <div class="note note--watch">
+        <p class="note-l">The link may not be tappable — say so when you send it</p>
+        <p>
+          WhatsApp only turns ordinary web addresses into tappable links reliably. This one is an
+          app link, so in many chats it will arrive as plain text. That is why the message itself
+          says <em>"tap the link, or paste it into Safari"</em>: the pilot presses and holds the
+          link, copies it, pastes it into the Safari address bar and presses go — Air Navigation Pro
+          opens with the waypoints in it. Worth telling him once, the first time, so he is not left
+          poking at text that will not respond.
+        </p>
+      </div>
+      <div class="note note--ops">
+        <p class="note-l">What gets trimmed, and why</p>
+        <p>
+          Names in the link are cut to the characters Air Navigation accepts and their spaces are
+          encoded, because a space would end the link where WhatsApp stops reading it — so
+          "FOB — main gate" travels as <code>FOB%20main%20gate</code> and arrives as "FOB main gate".
+          Identifiers are shortened to about ten characters and made unique. The written-out list
+          above it keeps the real names untouched, so nothing is actually lost. Routes are never
+          included: this is for sending positions, not a plan.
+        </p>
+      </div>
+      <p>
+        If the clipboard is blocked — some browsers refuse it unless the page has focus — the message
+        appears in a box under the button instead. Select it and copy it by hand; nothing is lost.
       </p>
 
       <h3>What arrives</h3>
@@ -948,6 +994,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.9</td><td class="num">29 Aug 2026</td><td><span class="ui">Copy for WhatsApp</span> — puts the selected locations on the clipboard as a message holding both a written-out list and an <code>airnavpro://</code> link that loads them into Air Navigation Pro in one tap</td></tr>
             <tr><td class="mono">1.8</td><td class="num">29 Aug 2026</td><td>Air Navigation Pro exports — GPX waypoints and routes for the app itself (a selection sends just those locations, no routes), and an Air Navigation Manager CSV that keeps layers as tags with icons and colours mapped across. A Manual link in the tool's header</td></tr>
             <tr><td class="mono">1.7</td><td class="num">28 Aug 2026</td><td>The phone number quoted with a location goes into that point's notes — each point gets its own number, not every number in the message</td></tr>
             <tr><td class="mono">1.6</td><td class="num">28 Aug 2026</td><td>Several locations in one sitrep sentence now get individual names taken from the words beside each coordinate; the original message is kept in the notes</td></tr>
@@ -963,7 +1010,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.8, 29 August 2026. Kept alongside
+        PED Field Manual · covers version 1.9, 29 August 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
