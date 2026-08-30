@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.13 · 30 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.14 · 30 August 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.13</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.14</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -602,6 +602,17 @@
           The boilerplate the export appends to remarks — layer, name, grid, symbol label — is
           stripped back off on the way in, so a round trip does not accumulate it. Only what an
           operator actually typed comes back as notes.
+        </p>
+      </div>
+      <div class="note note--watch">
+        <p class="note-l">Packages written before v1.14</p>
+        <p>
+          From v1.14 a marker's remarks keep your note and the generated summary on separate lines,
+          so reading a package back separates them exactly. Older packages ran the two together, and
+          there is no certain way to tell where one ended — so an older package may come back with
+          the layer name still attached to the note (<em>"Manned 0600–1800 — Blocking positions"</em>).
+          Nothing is lost; tidy it in the popup if it bothers you. Re-export once and it is clean
+          from then on.
         </p>
       </div>
       <div class="note note--watch">
@@ -1136,6 +1147,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.14</td><td class="num">30 Aug 2026</td><td>Maintenance pass over everything added this week. <strong>Fixed:</strong> exporting a large set of similarly named points could lock the tool up; a marker's popup could keep showing its old symbol after a bulk change; notes, names containing “·” and layer names containing an em dash could be mangled by a TAK round trip; an attachment could attach itself to the wrong marker; dropping several files at once could silently lose one. <strong>Faster:</strong> adding points no longer slows down as the project grows — a 300-point import is about five times quicker</td></tr>
             <tr><td class="mono">1.13</td><td class="num">30 Aug 2026</td><td>Every export asks for a file name first, with the generated one filled in and the name part selected — <kbd>Enter</kbd> accepts, <kbd>Esc</kbd> cancels. The per-layer export asks once for the whole batch. Names are folded to plain characters, because a browser silently saves a name it dislikes as <code>download</code>. Turn the asking off under the export buttons</td></tr>
             <tr><td class="mono">1.12</td><td class="num">30 Aug 2026</td><td><strong>TAK data packages import.</strong> Drop a mission package or a bare <code>.cot</code> on the map and it rebuilds markers, routes with their driven line, areas, range rings and marker attachments — so a plan built in ATAK can be pulled in and sent straight out to Air Navigation Pro or WhatsApp</td></tr>
             <tr><td class="mono">1.11</td><td class="num">30 Aug 2026</td><td>Each point keeps a permanent Air Navigation waypoint identifier, saved with the project, so re-importing an edited export with <strong>Overwrite</strong> updates the waypoint already held instead of landing on the wrong one. Previously the identifier was derived from the name and renumbered when a point with a similar name was added</td></tr>
@@ -1156,7 +1168,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.13, 30 August 2026. Kept alongside
+        PED Field Manual · covers version 1.14, 30 August 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>

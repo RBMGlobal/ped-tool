@@ -1517,13 +1517,13 @@ function wirePopup(popup, pt, ly){
   el.querySelectorAll('.affbtn').forEach(b => b.onclick = () => {
     if (ROLES[roleKeyOf(pt, ly)].noAff) pt.roleKey = 'generic';   // leaving a control-marker back to a framed point
     setPointType(pt.uid, { affKey: b.dataset.aff });
-    rec(pt.uid).marker.setPopupContent(popupHTML(pt, ly)); wirePopup(popup, pt, ly);
+    refreshPopup(pt.uid);
     toast(`${pt.name}: ${labelOf(pt,ly)} — ${cotOf(pt,ly)}`);
   });
   const sel = el.querySelector('.rolesel');
   if (sel) sel.onchange = () => {
     setPointType(pt.uid, { roleKey: sel.value });
-    rec(pt.uid).marker.setPopupContent(popupHTML(pt, ly)); wirePopup(popup, pt, ly);
+    refreshPopup(pt.uid);
     toast(`${pt.name}: ${labelOf(pt,ly)} — ${cotOf(pt,ly)}`);
   };
   const dc = el.querySelector('.dotcol');
@@ -1569,10 +1569,15 @@ function wirePopup(popup, pt, ly){
 }
 function mgrsOf(pt){ try { return (typeof mgrs!=='undefined') ? mgrs.forward([pt.lon, pt.lat], 5) : '—'; } catch(e){ return '—'; } }
 function rec(uid){ return registry[uid]; }
+/* Re-render a marker's popup and keep it LAZY. mkMarker binds a FUNCTION as the popup content so
+   it always renders from live state; handing setPopupContent a string replaced that function with a
+   snapshot, and the popup was then frozen for the life of the marker — it would go on showing the
+   old affiliation and CoT type after any change made from outside it. */
 function refreshPopup(uid){
   const r = registry[uid]; if (!r) return;
-  const p = r.marker.getPopup();
-  if (p && p.isOpen()){ r.marker.setPopupContent(popupHTML(r.pt, r.ly)); wirePopup(p, r.pt, r.ly); }
+  const pu = r.marker.getPopup(); if (!pu) return;
+  pu.setContent(() => { const rr = registry[uid] || r; return popupHTML(rr.pt, rr.ly); });
+  if (pu.isOpen()){ pu.update(); wirePopup(pu, r.pt, r.ly); }
 }
 /* ---------- point attachments (photos / files -> TAK package) ---------- */
 let attTarget = null;
@@ -1652,9 +1657,19 @@ function setPointType(uid, { affKey, roleKey }){
   if (affKey  !== undefined) r.pt.affKey  = affKey;
   if (roleKey !== undefined) r.pt.roleKey = roleKey;
   r.marker.setIcon(iconFor(r.pt, r.ly));
-  refreshSelUI(); scheduleAutosave();
+  refreshPopup(uid);
+  refreshSelUISoon(); scheduleAutosave();
 }
 function updateCount(ly){ const el = document.getElementById('cnt-'+ly.key); if (el) el.textContent = DATA[ly.key].length || ''; }
+/* addPoint used to repaint every marker on the map for each point added, so importing 400 points
+   into a project of 400 did 160,000 marker visits. Coalescing to one repaint per task makes a bulk
+   import linear again, and a microtask is imperceptible for a single point. */
+let _selUIQueued = false;
+function refreshSelUISoon(){
+  if (_selUIQueued) return;
+  _selUIQueued = true;
+  Promise.resolve().then(() => { _selUIQueued = false; refreshSelUI(); });
+}
 function refreshSelUI(){
   const n = selection.size;
   document.getElementById('selCount').textContent = n;
@@ -2018,12 +2033,17 @@ async function exportAllImageryPkg(){
 }
 document.getElementById('expImgPkgBtn').addEventListener('click', exportAllImageryPkg);
 document.getElementById('addTiffBtn').addEventListener('click', ()=> document.getElementById('tiffInput').click());
-document.getElementById('tiffInput').addEventListener('change', e => { [...e.target.files].forEach(handleImportFile); e.target.value=''; });
+document.getElementById('tiffInput').addEventListener('change', e => { importFilesInTurn(e.target.files); e.target.value=''; });
 const mapEl0 = document.querySelector('.mapbox'); const dh=document.getElementById('dropHint');
 ['dragenter','dragover'].forEach(ev => mapEl0.addEventListener(ev, e=>{ e.preventDefault(); dh.classList.add('on'); }));
 ['dragleave','drop'].forEach(ev => mapEl0.addEventListener(ev, e=>{ e.preventDefault(); if(ev==='drop'||e.target===mapEl0) dh.classList.remove('on'); }));
-mapEl0.addEventListener('drop', e => { dh.classList.remove('on'); const fs=[...(e.dataTransfer?.files||[])]; if(!fs.length){ toast('Drop a GeoTIFF, CSV, GeoJSON or saved project (.json).'); return;} fs.forEach(handleImportFile); });
+mapEl0.addEventListener('drop', e => { dh.classList.remove('on'); const fs=[...(e.dataTransfer?.files||[])]; if(!fs.length){ toast('Drop a GeoTIFF, CSV, GeoJSON or saved project (.json).'); return;} importFilesInTurn(fs); });
 /* one import front door: GeoTIFF imagery, project .json, GeoJSON, CSV */
+let _importChain = Promise.resolve();
+function importFilesInTurn(files){
+  [...files].forEach(f => { _importChain = _importChain.then(() => handleImportFile(f)).catch(() => {}); });
+  return _importChain;
+}
 async function handleImportFile(file){
   const name = file.name.toLowerCase();
   if (/\.(tif|tiff)$/.test(name)) return handleTiff(file);
@@ -2481,7 +2501,7 @@ function readCotDetail(ev){
   if (!det) return out;
   const contact = byLocal(det, 'contact')[0];
   out.callsign = contact ? (contact.getAttribute('callsign') || '') : '';
-  out.remarks = xmlFirstText(det, 'remarks').trim();
+  out.remarks = xmlFirstText(det, 'remarks').replace(/\s+$/, '');
   const col = byLocal(det, 'color')[0];
   if (col) out.argb = col.getAttribute('argb');
   const stroke = byLocal(det, 'strokeColor')[0];
@@ -2519,7 +2539,13 @@ function readCotEvent(ev, into){
   const lat = pEl ? parseFloat(pEl.getAttribute('lat')) : NaN;
   const lon = pEl ? parseFloat(pEl.getAttribute('lon')) : NaN;
   const det = readCotDetail(ev);
-  const name = (det.callsign || '').replace(/^\s*[^·]*·\s*/, '').trim() || 'Point';
+  // "BP3 · FOB Alpha" is an id and a name; put the id back where it belongs rather than dropping
+  // it. Chopping at the first "·" also destroyed names that legitimately contain one — a WhatsApp
+  // pin is named "<sender> · <time>".
+  const cs = String(det.callsign || '').trim();
+  const csParts = cs.split(' · ');
+  const ptId = (csParts.length === 2 && csParts[0].trim() && csParts[1].trim()) ? csParts[0].trim() : '';
+  const name = (ptId ? csParts[1].trim() : cs) || 'Point';
   const uid = ev.getAttribute('uid') || '';
 
   if (type === 'b-m-r'){                                              // route: stops + driven line
@@ -2565,7 +2591,7 @@ function readCotEvent(ev, into){
   }
   if (!isFinite(lat) || !isFinite(lon)) return false;
   const kind = readCotType(type, det);
-  into.points.push({ lat, lon, name, uid, cot: type, notes: det.remarks,
+  into.points.push({ lat, lon, name, id: ptId, uid, cot: type, notes: det.remarks,
     affKey: kind.affKey, roleKey: kind.roleKey, dotColor: kind.dotColor });
   return true;
 }
@@ -2573,15 +2599,19 @@ function readCotEvent(ev, into){
    so a round trip doesn't accumulate it, but leave anything the operator actually typed. */
 function tidyRemarks(rem, name){
   if (!rem) return '';
-  const s = String(rem);
-  // What we write is: [operator's note — ]<layer> — <name>. <dms>. <label>.
-  // Anchor on "— <name>." rather than pattern-matching the tail, because the DMS carries decimal
-  // points of its own and a sentence-counting regex eats the operator's note with it.
+  const s = String(rem).replace(/\r\n/g, '\n');
+  const nl = s.lastIndexOf('\n');
+  if (nl >= 0 && /\s—\s/.test(s.slice(nl)) && /\.\s*$/.test(s)) return s.slice(0, nl).trim();
+  // Older packages ran the note and the summary together on one line with " — " between them.
+  // A layer name can contain " — " too, so there is no way to tell them apart with certainty —
+  // strip only the part that can be proved (" — <name>. <dms>. <label>.") and keep whatever is
+  // left. An untidy note loses nothing; a wrongly cut one invents words the operator never wrote.
   const tail = ' — ' + name + '.';
   const i = s.lastIndexOf(tail);
-  if (i < 0 || !/\.\s*$/.test(s)) return s.trim();      // not ours — an operator wrote all of it
-  const cut = s.lastIndexOf(' — ', i - 1);               // the — that closes their note, if any
-  return (cut >= 0 ? s.slice(0, cut) : '').trim();
+  if (i < 0 || !/\.\s*$/.test(s)) return s.trim();
+  const head = s.slice(0, i);                 // "[note — ]<layer>"
+  const cut = head.lastIndexOf(' — ');
+  return (cut >= 0 ? head.slice(0, cut) : '').trim();
 }
 async function importTAK(files, label){
   const into = { points: [], routes: 0, shapes: 0, skipped: 0 };
@@ -2607,6 +2637,7 @@ async function importTAK(files, label){
         if (!rec) return;                       // addPoint hands back the registry record, not the point
         const pt = rec.pt;
         added++;
+        if (p.id) pt.id = p.id;
         pt.notes = tidyRemarks(p.notes, p.name);
         if (p.dotColor) pt.dotColor = p.dotColor;
         const atts = ATT_BY_UID[p.uid];
@@ -2632,7 +2663,11 @@ const MIME_BY_EXT = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:
   webp:'image/webp', pdf:'application/pdf', txt:'text/plain', kml:'application/vnd.google-earth.kml+xml' };
 async function importTAKZip(zip, names, zipName){
   ATT_BY_UID = {};
-  const manifest = names.find(n => /MissionPackageManifest\.xml$/i.test(n));
+  // ATAK and this tool both write MANIFEST/manifest.xml — "MissionPackageManifest" is the root
+  // ELEMENT, not the file name. Looking for the wrong name meant the manifest was never read and
+  // every attachment was matched by guessing at folders instead.
+  const manifest = names.find(n => /(^|\/)manifest\.xml$/i.test(n))
+                || names.find(n => /MissionPackageManifest\.xml$/i.test(n));
   const uidByEntry = {};
   if (manifest){
     try {
@@ -2762,7 +2797,7 @@ async function importPptx(file){
   } catch(e){ toast(file.name + ': could not read that file.'); }
 }
 document.getElementById('loadProjBtn').addEventListener('click', ()=> document.getElementById('importInput').click());
-document.getElementById('importInput').addEventListener('change', e => { [...e.target.files].forEach(handleImportFile); e.target.value=''; });
+document.getElementById('importInput').addEventListener('change', e => { importFilesInTurn(e.target.files); e.target.value=''; });
 
 /* ---------- exports ---------- */
 function selectedPoints(){ return [...selection].map(u => registry[u]).filter(Boolean); }
@@ -2866,7 +2901,11 @@ function cotFor(pt, ly, tm){
     <usericon iconsetpath="COT_MAPPING_SPOTMAP/b-m-p-s-m/${argbInt(col)}"/>`
     : (r.custom && r.path) ? `
     <usericon iconsetpath="${esc(r.path)}"/>` : '';
-  const remarks = (pt.notes ? pt.notes + ' — ' : '') + `${ly.name} — ${pt.name}. ${pt.dms}. ${labelOf(pt,ly)}.`;
+  // The operator's note and the summary we generate go on separate lines, so reading the package
+  // back can split them exactly. Running them together with " — " was ambiguous: a layer name may
+  // contain " — " as well, and guessing wrong either ate the note or invented one.
+  const summary = `${ly.name} — ${pt.name}. ${pt.dms}. ${labelOf(pt,ly)}.`;
+  const remarks = (pt.notes || '') + '\n' + summary;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <event version="2.0" uid="${esc(euid(pt.uid))}" type="${cot}" how="h-g-i-g-o" time="${tm.t}" start="${tm.t}" stale="${tm.s}">
   <point lat="${pt.lat}" lon="${pt.lon}" hae="9999999.0" ce="9999999.0" le="9999999.0"/>
@@ -3092,14 +3131,29 @@ function anpText(s, max){
    by position in the export, which meant adding a point whose name shared the first ten characters
    with another silently renumbered both — and an Overwrite import would then update the wrong
    waypoints. So the id is worked out once, kept on the point, and saved with the project. */
+let _anpTaken = null;                       // ids already handed out; invalidated whenever points change
+function anpTakenSet(){
+  if (_anpTaken) return _anpTaken;
+  _anpTaken = new Set();
+  LAYERS.forEach(ly => DATA[ly.key].forEach(q => { if (q.anpId) _anpTaken.add(q.anpId.toUpperCase()); }));
+  return _anpTaken;
+}
 function anpIdFor(pt){
   if (pt.anpId) return pt.anpId;
-  const taken = new Set();
-  LAYERS.forEach(ly => DATA[ly.key].forEach(q => { if (q.anpId) taken.add(q.anpId.toUpperCase()); }));
+  const taken = anpTakenSet();
   const base = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || 'WPT';
   let id = base, n = 2;
-  while (taken.has(id.toUpperCase())) id = (base.slice(0, 10) + n++).slice(0, 12);
+  // The number has to FIT inside the 12-character limit, so the stem gives ground as it grows.
+  // Truncating the whole thing instead meant "CHECKPOINT" + 100 came back as "CHECKPOINT10" —
+  // an id already issued — and the search spun forever on the hundredth point of that name.
+  while (taken.has(id.toUpperCase())){
+    const suffix = String(n++);
+    id = base.slice(0, Math.max(1, 12 - suffix.length)) + suffix;
+    if (n > 99999){ id = 'WPT' + Date.now().toString(36).slice(-6).toUpperCase(); break; }
+  }
   pt.anpId = id;
+  taken.add(id.toUpperCase());
+  scheduleAutosave();          // the id is only stable if it outlives this session
   return id;
 }
 function pointsForExport(){
@@ -3253,7 +3307,7 @@ function openPopupsRefresh(){
   allMarkers.forEach(x => {
     const pu = x.marker.getPopup();
     if (pu && x.marker.isPopupOpen && x.marker.isPopupOpen()){
-      x.marker.setPopupContent(popupHTML(x.pt, x.ly)); wirePopup(pu, x.pt, x.ly);
+      refreshPopup(x.pt.uid);
     }
   });
 }
@@ -3425,17 +3479,19 @@ function addPoint(lat, lon, name, affKey, roleKey, layerKey, open=true){
   const uid = ly.key + '.p' + (++addedSeq);
   const pt = { uid, id:'', name: (name&&name.trim()) || ('Point '+addedSeq), lat:+lat.toFixed(6), lon:+lon.toFixed(6), dms: toDMSstr(lat,lon), affKey, roleKey, notes:'', added:true };
   DATA[ly.key].push(pt);
+  _anpTaken = null;
   const m = mkMarker(pt, ly);
   groups[ly.key].addLayer(m);
   registry[uid] = { pt, ly, marker:m, group:groups[ly.key] };
   allMarkers.push(registry[uid]);
   if (!map.hasLayer(groups[ly.key])) { map.addLayer(groups[ly.key]); const cb=document.getElementById('cb-'+ly.key); if(cb) cb.checked=true; }
   updateCount(ly);
-  refreshSelUI(); scheduleAutosave();
+  refreshSelUISoon(); scheduleAutosave();
   if (open) { map.setView([pt.lat, pt.lon], Math.max(map.getZoom(), 14)); m.openPopup(); toast(`Added “${pt.name}”.`); }
   return registry[uid];
 }
 function removePoint(uid, quiet){
+  _anpTaken = null;
   const r = registry[uid]; if(!r) return;
   r.group.removeLayer(r.marker);
   const arr = DATA[r.ly.key], i = arr.indexOf(r.pt); if(i>=0) arr.splice(i,1);
@@ -4305,6 +4361,7 @@ function serializeProject(opts = {}){
   };
 }
 function clearAll(){
+  _anpTaken = null;
   Object.keys(routes).forEach(uid => { if (routes[uid].group) map.removeLayer(routes[uid].group); delete routes[uid]; });
   renderRouteList();
   Object.keys(shapes).forEach(uid => removeShape(uid, true));
