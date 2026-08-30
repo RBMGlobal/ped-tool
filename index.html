@@ -410,7 +410,7 @@
     <button class="toolbtn" id="expWaBtn">Copy for WhatsApp</button>
     <textarea id="waOut" rows="6" style="display:none;margin-top:6px" spellcheck="false" readonly></textarea>
     <label class="selrow" style="margin-top:6px"><input type="checkbox" id="anpElev"> Look up ground elevations (sends the coordinates out)</label>
-    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>Copy for WhatsApp</b> builds a message you paste straight into a chat — a readable list of the positions, plus an <code>airnavpro://</code> link that drops all of them into Air Navigation Pro at once, with no file to save and no share sheet. WhatsApp often shows an app link as plain text rather than something tappable, so the message tells the pilot to paste it into Safari if it will not tap — worth mentioning to him the first time. <b>To choose which locations go</b>, tick <b>“Send to Air Navigation Pro”</b> in a point’s popup — that list is kept separately from the TAK selection, so you can build up a pilot’s set without disturbing what you have selected for a data package. Marked points get a dashed blue ring on the map. “Mark selected” turns the current selection into marks in one go. With <b>nothing marked</b> these three fall back to the old behaviour: your selection if you have one, otherwise every point. Either way — marks or a selection — all three carry <b>only those points, with no routes attached</b>; the GPX brings your routes along only when nothing is marked and nothing is selected. Elevations are 0 unless you tick the box.</div>
+    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>Re-sending an edited set?</b> Importing a GPX again on the iPad <i>adds</i> the moved point and keeps the old one — the app has no merge for it. Use the CSV in Air Navigation Manager with <b>Overwrite</b> ticked instead: each point keeps a permanent waypoint identifier, so the existing waypoint is corrected rather than duplicated. <b>Copy for WhatsApp</b> builds a message you paste straight into a chat — a readable list of the positions, plus an <code>airnavpro://</code> link that drops all of them into Air Navigation Pro at once, with no file to save and no share sheet. WhatsApp often shows an app link as plain text rather than something tappable, so the message tells the pilot to paste it into Safari if it will not tap — worth mentioning to him the first time. <b>To choose which locations go</b>, tick <b>“Send to Air Navigation Pro”</b> in a point’s popup — that list is kept separately from the TAK selection, so you can build up a pilot’s set without disturbing what you have selected for a data package. Marked points get a dashed blue ring on the map. “Mark selected” turns the current selection into marks in one go. With <b>nothing marked</b> these three fall back to the old behaviour: your selection if you have one, otherwise every point. Either way — marks or a selection — all three carry <b>only those points, with no routes attached</b>; the GPX brings your routes along only when nothing is marked and nothing is selected. Elevations are 0 unless you tick the box.</div>
     </details>
 
     <details class="sec" id="sec-help">
@@ -423,7 +423,7 @@
       (KML/KMZ/GPX routes keep their source geometry exactly). Imports that carry points
       ask which layer to add them to — pick an existing layer or create a new one on the
       spot; a point in the wrong layer moves via the Layer dropdown in its popup, or select
-      several and use “Move selected to layer…”. <b>WhatsApp chat exports</b>: export the chat
+      several and use “Move selected to layer…”. <b>TAK data packages come back in too</b>: drop a mission/data package <b>.zip</b> or a bare <b>.cot</b> on the map and it rebuilds the markers (affiliation, role, colour, callsign, remarks), routes with their driven line, areas and range rings, plus any files attached to a marker — so a plan already built in ATAK can be pulled in here and sent straight out to Air Navigation Pro or WhatsApp. Packages carry no layers, so everything lands in the one layer you pick. <b>WhatsApp chat exports</b>: export the chat
       from WhatsApp (with media if you want the photos) and drop the <b>.zip</b> straight on the
       map — shared pins and typed coordinates are both read, each point is named from the
       message next to it, sender and timestamp land in its notes, and photos sent with a pin
@@ -2019,6 +2019,8 @@ async function handleImportFile(file){
   if (/\.(png|jpe?g|webp|gif)$/.test(name) || /^image\/(png|jpeg|webp|gif)/.test(file.type)) return handleImage(file);
   let text;
   try { text = await file.text(); } catch(e){ toast('Could not read '+file.name+'.'); return; }
+  if (/\.cot$/.test(name)) return importTAK([{ name: file.name, text }], file.name);
+  if (/\.xml$/.test(name) && cotEventsIn(text).length) return importTAK([{ name: file.name, text }], file.name);
   if (/\.csv$/.test(name)) return importCSV(text, file.name);
   if (/\.kml$/.test(name)) return importKML(text, file.name);
   if (/\.gpx$/.test(name)) return importGPX(text, file.name);
@@ -2401,6 +2403,261 @@ function showScan(items, text, sourceName, extra){
   else toast(`No coordinates found${sourceName ? ' in ' + sourceName : ''}.${short}`, short ? 6000 : 3200);
 }
 /* ---------- .zip: WhatsApp chat exports (and any data files zipped together) ---------- */
+/* ---------- TAK data package / CoT import — the reverse of the exports above ----------
+   Reads a MissionPackage .zip (or a bare .cot / .xml) and rebuilds the picture here: markers with
+   their affiliation, role, colour, callsign and remarks; routes with their stops and driven line;
+   drawing shapes and range rings; and any files attached to a marker. Works on packages this tool
+   wrote and on ones ATAK/WinTAK produced, which differ mainly in how they encode a shape's
+   outline — both spellings are handled. */
+
+// CoT type -> role key, derived from the same ROLES table the exports build from, so the two
+// directions cannot drift apart.
+const COT_TO_ROLE = (() => {
+  const m = {};
+  Object.keys(ROLES).forEach(k => {
+    const r = ROLES[k];
+    if (r.build) m[r.build('*')] = k;          // a-*-G-U-C-I …
+    else if (r.fixed && !r.dot) m[r.fixed] = k; // b-m-p-w
+  });
+  return m;
+})();
+const AFF_BY_LETTER = (() => {
+  const m = {};
+  Object.keys(AFF).forEach(k => m[AFF[k].L] = k);
+  return m;
+})();
+function argbToHex(v){
+  const n = Number(v);
+  if (!isFinite(n)) return null;
+  return '#' + ((n >>> 0) & 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase();
+}
+function dotRoleFor(hex){
+  if (!hex) return { roleKey: 'dot_red' };
+  const hit = Object.keys(ROLES).find(k => ROLES[k].dot && k !== 'dot_custom' &&
+    ROLES[k].color.toUpperCase() === hex.toUpperCase());
+  return hit ? { roleKey: hit } : { roleKey: 'dot_custom', dotColor: hex };
+}
+/* Turn a CoT type plus its detail block into the affiliation / role / colour this tool works in. */
+function readCotType(type, det){
+  const t = String(type || '');
+  const iconPath = det.usericon || '';
+  const spot = /SPOTMAP\/b-m-p-s-m\/(-?\d+)/.exec(iconPath);
+  if (t === 'b-m-p-s-m' || spot) return dotRoleFor(argbToHex(spot ? spot[1] : det.argb));
+  if (COT_TO_ROLE[t]) return { roleKey: COT_TO_ROLE[t] };            // fixed types, e.g. b-m-p-w
+  const m = /^a-([a-z])-(.*)$/.exec(t);
+  if (m){
+    const affKey = AFF_BY_LETTER[m[1]] || 'unknown';
+    const generic = 'a-*-' + m[2];
+    let roleKey = COT_TO_ROLE[generic];
+    if (!roleKey){                                                    // a longer type than we model
+      const stem = Object.keys(COT_TO_ROLE).filter(k => generic.startsWith(k + '-'))
+        .sort((a, b) => b.length - a.length)[0];
+      roleKey = stem ? COT_TO_ROLE[stem] : 'generic';
+    }
+    return { affKey, roleKey };
+  }
+  if (/^b-m-p/.test(t)) return { roleKey: 'waypoint' };
+  return { roleKey: 'generic' };
+}
+/* Pull the parts of <detail> we care about, tolerating either spelling of a shape outline. */
+function readCotDetail(ev){
+  const det = byLocal(ev, 'detail')[0];
+  const out = { links: [], vertices: [] };
+  if (!det) return out;
+  const contact = byLocal(det, 'contact')[0];
+  out.callsign = contact ? (contact.getAttribute('callsign') || '') : '';
+  out.remarks = xmlFirstText(det, 'remarks').trim();
+  const col = byLocal(det, 'color')[0];
+  if (col) out.argb = col.getAttribute('argb');
+  const stroke = byLocal(det, 'strokeColor')[0];
+  if (stroke) out.stroke = stroke.getAttribute('value');
+  const ui = byLocal(det, 'usericon')[0];
+  if (ui) out.usericon = ui.getAttribute('iconsetpath') || '';
+  const ell = byLocal(det, 'ellipse')[0];
+  if (ell) out.radius = parseFloat(ell.getAttribute('major'));
+  byLocal(det, 'link').forEach(l => {
+    const p = l.getAttribute('point');
+    const ll = p ? p.split(',').map(Number) : null;
+    out.links.push({ uid: l.getAttribute('uid') || '', type: l.getAttribute('type') || '',
+      callsign: l.getAttribute('callsign') || '',
+      lat: ll && isFinite(ll[0]) ? ll[0] : null, lon: ll && isFinite(ll[1]) ? ll[1] : null });
+  });
+  byLocal(det, 'vertex').forEach(v => {                                // ATAK's own shape spelling
+    const la = parseFloat(v.getAttribute('lat')), lo = parseFloat(v.getAttribute('lon'));
+    if (isFinite(la) && isFinite(lo)) out.vertices.push({ lat: la, lon: lo });
+  });
+  return out;
+}
+function cotEventsIn(text){
+  let doc;
+  try { doc = new DOMParser().parseFromString(text, 'text/xml'); } catch(e){ return []; }
+  if (!doc || doc.getElementsByTagName('parsererror').length) return [];
+  const evs = byLocal(doc, 'event');
+  if (evs.length) return evs;
+  return doc.documentElement && doc.documentElement.nodeName === 'event' ? [doc.documentElement] : [];
+}
+/* One CoT event -> whatever it is. Points are collected for the layer chooser rather than added
+   straight away, because the user picks their destination once for the whole package. */
+function readCotEvent(ev, into){
+  const type = ev.getAttribute('type') || '';
+  const pEl = byLocal(ev, 'point')[0];
+  const lat = pEl ? parseFloat(pEl.getAttribute('lat')) : NaN;
+  const lon = pEl ? parseFloat(pEl.getAttribute('lon')) : NaN;
+  const det = readCotDetail(ev);
+  const name = (det.callsign || '').replace(/^\s*[^·]*·\s*/, '').trim() || 'Point';
+  const uid = ev.getAttribute('uid') || '';
+
+  if (type === 'b-m-r'){                                              // route: stops + driven line
+    const wps = [], segs = [];
+    let cur = null;
+    det.links.forEach(l => {
+      if (l.lat === null) return;
+      const isStop = /b-m-p-w/.test(l.type) || (!!l.uid && !!l.callsign);
+      if (isStop){ wps.push({ lat: l.lat, lon: l.lon }); if (cur) segs.push(cur); cur = [[l.lat, l.lon]]; }
+      else if (cur) cur.push([l.lat, l.lon]);
+    });
+    if (cur) segs.push(cur);
+    if (wps.length < 2) return false;
+    for (let i = 0; i < wps.length - 1; i++){
+      const s = segs[i] || [];
+      if (!s.length || s[s.length-1][0] !== wps[i+1].lat || s[s.length-1][1] !== wps[i+1].lon)
+        s.push([wps[i+1].lat, wps[i+1].lon]);
+      segs[i] = s;
+    }
+    const ruid = 'ROUTE.' + (++routeSeq);
+    const rt = { uid: ruid, name: det.callsign || ('Route ' + routeSeq),
+      color: argbToHex(det.argb) || '#0a58ff', waypoints: wps,
+      segments: segs.slice(0, wps.length - 1), snapped: true, exact: true };
+    routes[ruid] = rt; drawRoute(rt); into.routes++;
+    return true;
+  }
+  if (type === 'u-d-c-c' && isFinite(lat) && isFinite(lon) && isFinite(det.radius)){
+    createShape({ kind:'circ', center:{ lat, lon }, radius: det.radius, name: det.callsign,
+      color: argbToHex(det.stroke) || argbToHex(det.argb) || '#EE2222', notes: det.remarks });
+    into.shapes++; return true;
+  }
+  if (/^u-d-(f|r)/.test(type)){
+    let ring = det.vertices.length ? det.vertices
+             : det.links.filter(l => l.lat !== null).map(l => ({ lat: l.lat, lon: l.lon }));
+    if (ring.length > 2){
+      const f = ring[0], e = ring[ring.length-1];
+      if (f.lat === e.lat && f.lon === e.lon) ring = ring.slice(0, -1);   // closing point is implied
+    }
+    if (ring.length < 3) return false;
+    createShape({ kind:'poly', latlngs: ring, name: det.callsign,
+      color: argbToHex(det.stroke) || argbToHex(det.argb) || '#EE2222', notes: det.remarks });
+    into.shapes++; return true;
+  }
+  if (!isFinite(lat) || !isFinite(lon)) return false;
+  const kind = readCotType(type, det);
+  into.points.push({ lat, lon, name, uid, cot: type, notes: det.remarks,
+    affKey: kind.affKey, roleKey: kind.roleKey, dotColor: kind.dotColor });
+  return true;
+}
+/* Remarks we wrote ourselves end with " — <layer> — <name>. <dms>. <label>." — strip that back off
+   so a round trip doesn't accumulate it, but leave anything the operator actually typed. */
+function tidyRemarks(rem, name){
+  if (!rem) return '';
+  const s = String(rem);
+  // What we write is: [operator's note — ]<layer> — <name>. <dms>. <label>.
+  // Anchor on "— <name>." rather than pattern-matching the tail, because the DMS carries decimal
+  // points of its own and a sentence-counting regex eats the operator's note with it.
+  const tail = ' — ' + name + '.';
+  const i = s.lastIndexOf(tail);
+  if (i < 0 || !/\.\s*$/.test(s)) return s.trim();      // not ours — an operator wrote all of it
+  const cut = s.lastIndexOf(' — ', i - 1);               // the — that closes their note, if any
+  return (cut >= 0 ? s.slice(0, cut) : '').trim();
+}
+async function importTAK(files, label){
+  const into = { points: [], routes: 0, shapes: 0, skipped: 0 };
+  for (const f of files){
+    const evs = cotEventsIn(f.text);
+    if (!evs.length){ into.skipped++; continue; }
+    evs.forEach(ev => { if (!readCotEvent(ev, into)) into.skipped++; });
+  }
+  const others = into.routes + into.shapes;
+  if (!into.points.length && !others){
+    toast(`${label}: no Cursor-on-Target items could be read out of that.`, 5000);
+    return;
+  }
+  let added = 0;
+  if (into.points.length){
+    const dest = await pickLayerDest({
+      title: `${label}: add ${into.points.length} marker${into.points.length===1?'':'s'} to which layer?`,
+      suggestName: label.replace(/\.[^.]+$/, '').slice(0, 40),
+      cancelLabel: others ? 'Skip the markers' : 'Cancel' });
+    if (dest){
+      into.points.forEach(p => {
+        const rec = addPoint(p.lat, p.lon, p.name, p.affKey, p.roleKey, dest.key, false);
+        if (!rec) return;                       // addPoint hands back the registry record, not the point
+        const pt = rec.pt;
+        added++;
+        pt.notes = tidyRemarks(p.notes, p.name);
+        if (p.dotColor) pt.dotColor = p.dotColor;
+        const atts = ATT_BY_UID[p.uid];
+        if (atts && atts.length) pt.atts = (pt.atts || []).concat(atts);
+        rec.marker.setIcon(iconFor(pt, rec.ly));
+      });
+      const ly = LYBY[dest.key];
+      if (ly) updateCount(ly);
+    }
+  }
+  fitAll(); renderRouteList(); renderShapeList(); refreshSelUI(); scheduleAutosave();
+  const bits = [];
+  if (added) bits.push(`${added} marker${added===1?'':'s'}`);
+  if (into.routes) bits.push(`${into.routes} route${into.routes===1?'':'s'}`);
+  if (into.shapes) bits.push(`${into.shapes} area${into.shapes===1?'':'s'}`);
+  const nAtt = into.points.reduce((n,p) => n + ((ATT_BY_UID[p.uid]||[]).length), 0);
+  toast(`${label}: imported ${bits.join(', ') || 'nothing'}${nAtt ? `, plus ${nAtt} attachment${nAtt===1?'':'s'}` : ''}${into.skipped ? ` — ${into.skipped} item${into.skipped===1?'':'s'} not recognised` : ''}.`, 7000);
+}
+/* Attachments are matched to their marker through the manifest, which stamps every zip entry with
+   the uid of the item it belongs to; without a manifest, files sitting beside a .cot are used. */
+let ATT_BY_UID = {};
+const MIME_BY_EXT = { png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+  webp:'image/webp', pdf:'application/pdf', txt:'text/plain', kml:'application/vnd.google-earth.kml+xml' };
+async function importTAKZip(zip, names, zipName){
+  ATT_BY_UID = {};
+  const manifest = names.find(n => /MissionPackageManifest\.xml$/i.test(n));
+  const uidByEntry = {};
+  if (manifest){
+    try {
+      const mx = new DOMParser().parseFromString(await zip.file(manifest).async('string'), 'text/xml');
+      byLocal(mx, 'Content').forEach(c => {
+        const entry = c.getAttribute('zipEntry') || '';
+        const p = byLocal(c, 'Parameter').find(x => (x.getAttribute('name') || '') === 'uid');
+        if (entry && p) uidByEntry[entry] = p.getAttribute('value') || '';
+      });
+    } catch(e){}
+  }
+  const cotNames = names.filter(n => /\.cot$/i.test(n) ||
+    (/\.xml$/i.test(n) && !/MissionPackageManifest\.xml$/i.test(n)));
+  const files = [];
+  for (const n of cotNames){
+    const text = await zip.file(n).async('string');
+    if (cotEventsIn(text).length) files.push({ name: n, text });
+  }
+  if (!files.length){ toast(`${zipName}: no CoT files inside that package.`, 5000); return false; }
+  // everything that is not a CoT or the manifest is a candidate attachment
+  for (const n of names){
+    if (/\.cot$/i.test(n) || /MissionPackageManifest\.xml$/i.test(n)) continue;
+    if (/\.xml$/i.test(n) && files.some(f => f.name === n)) continue;
+    let uid = uidByEntry[n];
+    if (!uid){                                   // no manifest: fall back to the sibling .cot's uid
+      const folder = n.slice(0, n.lastIndexOf('/') + 1);
+      const sib = files.find(f => f.name.startsWith(folder));
+      if (sib){ const ev = cotEventsIn(sib.text)[0]; uid = ev ? ev.getAttribute('uid') : ''; }
+    }
+    if (!uid) continue;
+    const ext = (n.split('.').pop() || '').toLowerCase();
+    const b64 = await zip.file(n).async('base64');
+    (ATT_BY_UID[uid] = ATT_BY_UID[uid] || []).push({
+      name: n.split('/').pop(), type: MIME_BY_EXT[ext] || 'application/octet-stream',
+      dataURL: `data:${MIME_BY_EXT[ext] || 'application/octet-stream'};base64,${b64}` });
+  }
+  await importTAK(files, zipName);
+  ATT_BY_UID = {};
+  return true;
+}
 async function importZip(file){
   let zip;
   try { zip = await JSZip.loadAsync(await file.arrayBuffer()); }
@@ -2412,6 +2669,9 @@ async function importZip(file){
     const t = await zip.file(n).async('string');
     if (waIsExport(t)) return importWhatsApp(t, zip, names, file.name, n.split('/').pop());
   }
+  // a TAK data package: a manifest, or any .cot inside
+  if (pick(/MissionPackageManifest\.xml$/i).length || pick(/\.cot$/i).length)
+    { if (await importTAKZip(zip, names, file.name)) return; }
   const kml = pick(/\.kml$/i)[0];
   if (kml) return importKML(await zip.file(kml).async('string'), `${file.name} → ${kml.split('/').pop()}`);
   const data = pick(/\.(csv|gpx|geojson|json)$/i);
@@ -2430,10 +2690,7 @@ async function importZip(file){
     for (const n of txts) all += await zip.file(n).async('string') + '\n';
     return importScannedText(all, file.name);
   }
-  const cots = pick(/\.cot$/i).length;
-  toast(cots
-    ? `${file.name}: that's a TAK data package (${cots} CoT file${cots===1?'':'s'}) — reading packages back in isn't supported yet.`
-    : `${file.name}: no chat export, KML, CSV, GPX or GeoJSON found inside.`, 5000);
+  toast(`${file.name}: no TAK package, chat export, KML, CSV, GPX or GeoJSON found inside.`, 5000);
 }
 async function importWhatsApp(text, zip, names, zipName, chatFile){
   const items = scanTextForCoords(text);
@@ -2739,6 +2996,21 @@ function anpText(s, max){
   return String(s||'').replace(/[^a-zA-Z0-9\-_. /\[\]!?@*+]+/g, ' ')
     .replace(/\s+/g, ' ').trim().slice(0, max || 60);
 }
+/* Air Navigation identifies a waypoint by its id, so re-importing an edited export only updates
+   the right waypoint if that id never moves. It used to be derived from the name and de-duplicated
+   by position in the export, which meant adding a point whose name shared the first ten characters
+   with another silently renumbered both — and an Overwrite import would then update the wrong
+   waypoints. So the id is worked out once, kept on the point, and saved with the project. */
+function anpIdFor(pt){
+  if (pt.anpId) return pt.anpId;
+  const taken = new Set();
+  LAYERS.forEach(ly => DATA[ly.key].forEach(q => { if (q.anpId) taken.add(q.anpId.toUpperCase()); }));
+  const base = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || 'WPT';
+  let id = base, n = 2;
+  while (taken.has(id.toUpperCase())) id = (base.slice(0, 10) + n++).slice(0, 12);
+  pt.anpId = id;
+  return id;
+}
 function pointsForExport(){
   const sel = selectedPoints();
   return sel.length ? sel : allMarkers.slice();
@@ -2782,7 +3054,7 @@ async function exportGPX(){
     const desc = [pt.notes || '', `${ly.name} - ${labelOf(pt, ly)}`].filter(Boolean).join(' | ');
     x += `  <wpt lat="${pt.lat}" lon="${pt.lon}">\n`;
     if (elevs[i]) x += `    <ele>${elevs[i]}</ele>\n`;
-    x += `    <name>${esc((pt.id ? pt.id + ' ' : '') + pt.name)}</name>\n`;
+    x += `    <name>${esc(anpIdFor(pt) + ' ' + pt.name)}</name>\n`;
     if (desc) x += `    <desc>${esc(desc)}</desc>\n`;
     x += `    <type>${esc(ly.name)}</type>\n  </wpt>\n`;
   });
@@ -2812,12 +3084,8 @@ async function exportANPCsv(){
   const { elevs, src } = await anpElevations(pts);
   const head = ['waypoint_id','waypoint_name','waypoint_type','waypoint_elevation',
                 'waypoint_latitude','waypoint_longitude','waypoint_tag','waypoint_icon','waypoint_color'];
-  const used = new Set();
   const rows = pts.map(({pt, ly}, i) => {
-    let id = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || ('WPT' + (i + 1));
-    let base = id, n = 2;
-    while (used.has(id.toUpperCase())) id = (base + n++).slice(0, 12);
-    used.add(id.toUpperCase());
+    const id = anpIdFor(pt);
     const r = ROLES[roleKeyOf(pt, ly)];
     const colour = r.dot || r.custom ? anpNearestColour(colorOf(pt, ly))
                  : ({ hostile:'Pink', suspect:'Pink', unknown:'Yellow', pending:'Yellow',
@@ -2845,12 +3113,8 @@ function urlField(s){
     .replace(/[%&#?+]/g, '').replace(/ /g, '%20');
 }
 function anpDeepLink(pts, elevs){
-  const used = new Set();
   const wps = pts.map(({pt, ly}, i) => {
-    let id = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || ('WP' + (i + 1));
-    let base = id, n = 2;
-    while (used.has(id.toUpperCase())) id = (base + n++).slice(0, 12);
-    used.add(id.toUpperCase());
+    const id = anpIdFor(pt);
     const name = urlField(anpText(pt.name, 40)) || id;
     return `${pt.lat.toFixed(6)}_${pt.lon.toFixed(6)},${(elevs[i] || 0).toFixed(1)},${urlField(id)},${name}`;
   }).join(';');
@@ -3941,7 +4205,7 @@ function serializeProject(opts = {}){
     customIcons: customIconsList(),
     layers: LAYERS.map(l => ({ key: l.key, name: l.name, defAff: l.defAff, defRole: l.defRole, defDotColor: l.defDotColor,
       visible: map.hasLayer(groups[l.key]),
-      points: DATA[l.key].map(p => ({ uid: p.uid, id: p.id, name: p.name, lat: p.lat, lon: p.lon, affKey: p.affKey, roleKey: p.roleKey, dotColor: p.dotColor, notes: p.notes, added: p.added, anav: p.anav || undefined,
+      points: DATA[l.key].map(p => ({ uid: p.uid, id: p.id, name: p.name, lat: p.lat, lon: p.lon, affKey: p.affKey, roleKey: p.roleKey, dotColor: p.dotColor, notes: p.notes, added: p.added, anav: p.anav || undefined, anpId: p.anpId || undefined,
         atts: files ? (p.atts || []).map(a => ({ name: a.name, type: a.type, dataURL: a.dataURL })) : undefined })) })),
     routes: Object.values(routes).map(rt => ({ uid: rt.uid, name: rt.name, color: rt.color, waypoints: rt.waypoints, segments: rt.segments, snapped: rt.snapped, exact: rt.exact || undefined })),
     shapes: Object.values(shapes).map(sh => ({ uid: sh.uid, kind: sh.kind, name: sh.name, color: sh.color, latlngs: sh.latlngs, center: sh.center, radius: sh.radius, notes: sh.notes })),
@@ -3974,7 +4238,7 @@ function loadProject(obj){
       (L0.points || []).forEach(p => {
         if (!isFinite(+p.lat) || !isFinite(+p.lon)) return;
         const pt = { uid: p.uid, id: p.id || '', name: p.name || 'Point', lat: +p.lat, lon: +p.lon,
-          dms: toDMSstr(+p.lat, +p.lon), affKey: p.affKey, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined,
+          dms: toDMSstr(+p.lat, +p.lon), affKey: p.affKey, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined, anpId: p.anpId || undefined,
           atts: (p.atts || []).filter(a => a && a.dataURL) };
         DATA[ly.key].push(pt);
         const m2 = pt.uid && String(pt.uid).match(/\.p(\d+)$/); if (m2) addedSeq = Math.max(addedSeq, +m2[1]);

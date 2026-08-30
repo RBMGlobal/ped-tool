@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.10 · 30 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.12 · 30 August 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.10</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.12</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -578,6 +578,43 @@
         points.
       </p>
 
+      <h3>TAK data packages — the other direction</h3>
+      <p>
+        Drop a <strong>mission or data package</strong> (<code>.zip</code>) — or a bare
+        <code>.cot</code> — onto the map and it is read back in: markers with their affiliation,
+        role, colour, callsign and remarks; routes with their stops <em>and</em> the driven line
+        between them; drawing shapes and range rings; and any photos or files attached to a marker.
+        You are asked once which layer the markers should go to, the same as any other import.
+      </p>
+      <p>
+        This is what makes the tool work in both directions. If the plan has already been built in
+        ATAK or WinTAK, you no longer rebuild it here to get it to a pilot — pull the package in,
+        then send it straight back out as GPX, an Air Navigation CSV, or a WhatsApp message. It also
+        means a package that came off someone else's tablet can be checked, corrected and pushed
+        back out without ever leaving the map.
+      </p>
+      <div class="note note--ops">
+        <p class="note-l">What survives the trip</p>
+        <p>
+          A package exported from here and dropped straight back in returns the same picture:
+          identical CoT types, the same colours (including spot-map dot colours, which travel in the
+          marker's own colour field), your notes, and attachments back on the markers they belong to.
+          The boilerplate the export appends to remarks — layer, name, grid, symbol label — is
+          stripped back off on the way in, so a round trip does not accumulate it. Only what an
+          operator actually typed comes back as notes.
+        </p>
+      </div>
+      <div class="note note--watch">
+        <p class="note-l">What does not come across</p>
+        <p>
+          Packages carry no layer structure, so everything lands in the one layer you pick — split it
+          afterwards with <span class="ui">Move selected to layer…</span> if you want it separated.
+          Imagery overlays inside a package are not read. Anything using a CoT type the tool does not
+          model arrives as a plain point of the right affiliation rather than being dropped, and the
+          toast tells you how many items it could not make sense of.
+        </p>
+      </div>
+
       <h3>WhatsApp chat exports</h3>
       <p>
         In WhatsApp, open the chat → <strong>Export chat</strong> → <strong>With media</strong> if
@@ -704,6 +741,7 @@
             <tr><td class="mono">Air Navigation CSV</td><td>Waypoints with layer as tag, icon and colour — for bulk import via Air Navigation Manager</td></tr>
             <tr><td class="mono">Copy for WhatsApp</td><td>A message you can paste straight into a chat: the locations written out, plus a link that adds them to Air Navigation Pro</td></tr>
             <tr><td class="mono">Send to Air Nav Pro</td><td>Tick box in a point’s popup — builds the pilot’s list separately from the TAK selection</td></tr>
+            <tr><td class="mono">← import a package</td><td>Drop a TAK <code>.zip</code> or <code>.cot</code> on the map to read one back in — see section 05</td></tr>
           </tbody>
         </table>
       </div>
@@ -783,6 +821,49 @@
         service the elevation profile uses — so it needs internet, and the coordinates go to that
         service. All three of these use your current selection if you have one, and every point if
         you don't.
+      </p>
+
+      <h3>Sending an updated set — and why you get duplicates</h3>
+      <p>
+        Move a point, export again, open the new file on the iPad, and Air Navigation Pro
+        <strong>adds a second waypoint and keeps the old one</strong>. That is the app's behaviour on
+        the device, not something the file can change: a GPX carries no field that says "this is the
+        same waypoint you already have", and Air Navigation's own manual documents no merge or
+        replace option for an on-device import. Nothing PED can put in the file will make it update
+        in place.
+      </p>
+      <div class="note note--ops">
+        <p class="note-l">The route that does update: Air Navigation Manager</p>
+        <p>
+          <span class="ui">Export Air Navigation CSV</span>, then import it in
+          <strong>Air Navigation Manager</strong> on a computer with the
+          <strong>Overwrite</strong> box ticked. Their documentation is explicit about it:
+          <em>"By default, existing waypoints will not be replaced. Click on the Overwrite checkbox
+          to ensure the items are updated."</em> The corrected waypoints then sync down to the iPad
+          instead of piling up beside the old ones.
+        </p>
+        <p>
+          Every point now carries a <strong>permanent waypoint identifier</strong> — worked out the
+          first time you export it and saved with the project — so an updated export points at the
+          waypoint Air Navigation already holds. Moving a point keeps its identifier, and so does
+          renaming it, which is what makes an Overwrite import correct the existing waypoint rather
+          than add a twin.
+        </p>
+      </div>
+      <div class="note note--watch">
+        <p class="note-l">Test it on two waypoints before you trust it with fifty</p>
+        <p>
+          Air Navigation's documentation says Overwrite updates existing items but does not say which
+          field it matches on. The identifier is the only sensible candidate and it is a mandatory
+          column in their format, but that is our inference and not something they state. Send two
+          waypoints, move one, re-import with Overwrite, and check you end up with two rather than
+          three before you rely on it operationally.
+        </p>
+      </div>
+      <p>
+        If you are working iPad-only and the duplicates are piling up, the blunt instrument is
+        Air Navigation's own <span class="ui">Restore waypoints → Confirm replacement</span>, which
+        swaps the whole user-waypoint set for a backup rather than merging into it.
       </p>
 
       <h3>Sending locations over WhatsApp</h3>
@@ -1022,6 +1103,8 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.12</td><td class="num">30 Aug 2026</td><td><strong>TAK data packages import.</strong> Drop a mission package or a bare <code>.cot</code> on the map and it rebuilds markers, routes with their driven line, areas, range rings and marker attachments — so a plan built in ATAK can be pulled in and sent straight out to Air Navigation Pro or WhatsApp</td></tr>
+            <tr><td class="mono">1.11</td><td class="num">30 Aug 2026</td><td>Each point keeps a permanent Air Navigation waypoint identifier, saved with the project, so re-importing an edited export with <strong>Overwrite</strong> updates the waypoint already held instead of landing on the wrong one. Previously the identifier was derived from the name and renumbered when a point with a similar name was added</td></tr>
             <tr><td class="mono">1.10</td><td class="num">30 Aug 2026</td><td>A second tick box in each point’s popup, <span class="ui">Send to Air Navigation Pro</span>, so the pilot’s list is built and kept separately from the TAK selection. Marked points ring blue on the map; <span class="ui">Mark selected</span> and <span class="ui">Clear marks</span> sit above the exports, and the marks are saved with the project</td></tr>
             <tr><td class="mono">1.9</td><td class="num">29 Aug 2026</td><td><span class="ui">Copy for WhatsApp</span> — puts the selected locations on the clipboard as a message holding both a written-out list and an <code>airnavpro://</code> link that loads them into Air Navigation Pro in one tap</td></tr>
             <tr><td class="mono">1.8</td><td class="num">29 Aug 2026</td><td>Air Navigation Pro exports — GPX waypoints and routes for the app itself (a selection sends just those locations, no routes), and an Air Navigation Manager CSV that keeps layers as tags with icons and colours mapped across. A Manual link in the tool's header</td></tr>
@@ -1039,7 +1122,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.10, 30 August 2026. Kept alongside
+        PED Field Manual · covers version 1.12, 30 August 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
