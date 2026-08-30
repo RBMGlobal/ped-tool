@@ -400,12 +400,17 @@
     <button class="toolbtn" id="expKmlBtn" disabled>Export KML (.kml)</button>
     <button class="toolbtn" id="expCsvBtn" disabled>Export CSV (.csv)</button>
     <div class="subhead">Air Navigation Pro</div>
+    <div class="selbar"><span class="selcount" id="anavCount">0</span><span style="color:var(--muted);font-size:12px">marked for Air Nav — tick “Send to Air Navigation Pro” in a point’s popup</span></div>
+    <div class="bulkrow">
+      <button class="toolbtn" id="anavMarkBtn" style="margin-top:0;flex:1" title="Mark every selected point for Air Navigation Pro">Mark selected</button>
+      <button class="toolbtn" id="anavClearBtn" style="margin-top:0;flex:1" title="Clear every Air Navigation mark">Clear marks</button>
+    </div>
     <button class="toolbtn" id="expGpxBtn">Export GPX (.gpx)</button>
     <button class="toolbtn" id="expAnpBtn">Export Air Navigation CSV</button>
     <button class="toolbtn" id="expWaBtn">Copy for WhatsApp</button>
     <textarea id="waOut" rows="6" style="display:none;margin-top:6px" spellcheck="false" readonly></textarea>
     <label class="selrow" style="margin-top:6px"><input type="checkbox" id="anpElev"> Look up ground elevations (sends the coordinates out)</label>
-    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>Copy for WhatsApp</b> builds a message you paste straight into a chat — a readable list of the positions, plus an <code>airnavpro://</code> link that drops all of them into Air Navigation Pro at once, with no file to save and no share sheet. WhatsApp often shows an app link as plain text rather than something tappable, so the message tells the pilot to paste it into Safari if it will not tap — worth mentioning to him the first time. <b>To send just a few locations</b>, select them first — tick them in their popups, drag a box, or “Select points in view” — and all three carry only those, with no routes attached. With nothing selected you get every point, and the GPX also carries your routes. Elevations are 0 unless you tick the box.</div>
+    <div class="addhint"><b>GPX</b> goes straight into Air Navigation Pro: put the file on the device, then Share / Open with &rarr; Air Navigation Pro. It carries your points as user waypoints and each route as a route (stops) plus its full traced line. <b>Air Navigation CSV</b> is the bulk-import format for <b>Air Navigation Manager</b> on a computer — same points, but it also carries your layer as the waypoint <i>tag</i> and maps each icon and colour to the nearest one Air Navigation offers. <b>Copy for WhatsApp</b> builds a message you paste straight into a chat — a readable list of the positions, plus an <code>airnavpro://</code> link that drops all of them into Air Navigation Pro at once, with no file to save and no share sheet. WhatsApp often shows an app link as plain text rather than something tappable, so the message tells the pilot to paste it into Safari if it will not tap — worth mentioning to him the first time. <b>To choose which locations go</b>, tick <b>“Send to Air Navigation Pro”</b> in a point’s popup — that list is kept separately from the TAK selection, so you can build up a pilot’s set without disturbing what you have selected for a data package. Marked points get a dashed blue ring on the map. “Mark selected” turns the current selection into marks in one go. With <b>nothing marked</b> these three fall back to the old behaviour: your selection if you have one, otherwise every point. Either way — marks or a selection — all three carry <b>only those points, with no routes attached</b>; the GPX brings your routes along only when nothing is marked and nothing is selected. Elevations are 0 unless you tick the box.</div>
     </details>
 
     <details class="sec" id="sec-help">
@@ -1484,6 +1489,7 @@ function popupHTML(pt, ly) {
     <button class="mini attadd">+ Attach photo / file…</button>
     <a href="${gm}" target="_blank" rel="noopener">Open in Google Maps ↗</a>
     <label class="selrow"><input type="checkbox" data-uid="${pt.uid}" ${checked}> Select for TAK / KML export</label>
+    <label class="selrow"><input type="checkbox" class="anavcb" ${pt.anav ? 'checked' : ''}> Send to Air Navigation Pro</label>
     ${rmBlock}
   </div>`;
 }
@@ -1491,6 +1497,8 @@ function wirePopup(popup, pt, ly){
   const el = popup.getElement(); if(!el) return;
   const cb = el.querySelector('input[data-uid]');
   if (cb) { cb.checked = selection.has(pt.uid); cb.onchange = () => toggleSel(pt.uid, cb.checked); }
+  const acb = el.querySelector('.anavcb');
+  if (acb) { acb.checked = !!pt.anav; acb.onchange = () => { pt.anav = acb.checked || undefined; refreshSelUI(); scheduleAutosave(); }; }
   el.querySelectorAll('.affbtn').forEach(b => b.onclick = () => {
     if (ROLES[roleKeyOf(pt, ly)].noAff) pt.roleKey = 'generic';   // leaving a control-marker back to a framed point
     setPointType(pt.uid, { affKey: b.dataset.aff });
@@ -1635,14 +1643,17 @@ function updateCount(ly){ const el = document.getElementById('cnt-'+ly.key); if 
 function refreshSelUI(){
   const n = selection.size;
   document.getElementById('selCount').textContent = n;
+  const anavN = anavMarked().length;
+  const anavEl = document.getElementById('anavCount'); if (anavEl) anavEl.textContent = anavN;
+  const anavClr = document.getElementById('anavClearBtn'); if (anavClr) anavClr.disabled = anavN === 0;
   ['expTakBtn','expCsvBtn','selDeleteBtn'].forEach(id => { const el=document.getElementById(id); if(el) el.disabled = n===0; });
   const kml = document.getElementById('expKmlBtn');
   if (kml) kml.disabled = n===0 && !Object.keys(routes).length && !Object.keys(shapes).length;
   allMarkers.forEach(x => {
     const el = x.marker._icon; if(!el) return;
     const on = selection.has(x.pt.uid);
-    el.style.outline = on ? '2px solid #111' : '';
-    el.style.boxShadow = on ? '0 0 0 4px rgba(255,255,255,.85)' : '';
+    el.style.outline = on ? '2px solid #111' : (x.pt.anav ? '2px dashed #0a58ff' : '');
+    el.style.boxShadow = on ? '0 0 0 4px rgba(255,255,255,.85)' : (x.pt.anav ? '0 0 0 3px rgba(255,255,255,.8)' : '');
     el.style.borderRadius = '50%';
   });
 }
@@ -2732,6 +2743,14 @@ function pointsForExport(){
   const sel = selectedPoints();
   return sel.length ? sel : allMarkers.slice();
 }
+/* The Air Navigation exports have their own tick box in each point's popup, so a pilot's list can
+   be built up independently of whatever is selected for TAK. Mark nothing and they behave exactly
+   as before: your selection if there is one, otherwise every point. */
+function anavMarked(){ return allMarkers.filter(x => !!x.pt.anav); }
+function anavPointsForExport(){
+  const marked = anavMarked();
+  return marked.length ? marked : pointsForExport();
+}
 async function anpElevations(pts){
   if (!document.getElementById('anpElev').checked) return { elevs: pts.map(() => 0), src: '' };
   try {
@@ -2750,10 +2769,10 @@ async function anpElevations(pts){
   }
 }
 async function exportGPX(){
-  const pts = pointsForExport();
+  const pts = anavPointsForExport();
   // A selection means "send exactly these locations" — so routes stay behind. With nothing
   // selected you get the whole picture, points and routes together.
-  const rts = selection.size ? [] : Object.values(routes);
+  const rts = (selection.size || anavMarked().length) ? [] : Object.values(routes);
   if (!pts.length && !rts.length){ toast('Nothing to export yet.'); return; }
   const { elevs, src } = await anpElevations(pts);
   const t = new Date().toISOString();
@@ -2788,7 +2807,7 @@ async function exportGPX(){
   toast(`GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : (selection.size ? ' only (routes left out — that\u2019s your selection)' : '')}${src ? ` · elevations: ${src}` : ''}. On the device: Share the file to Air Navigation Pro.`, 7000);
 }
 async function exportANPCsv(){
-  const pts = pointsForExport();
+  const pts = anavPointsForExport();
   if (!pts.length){ toast('No points to export yet.'); return; }
   const { elevs, src } = await anpElevations(pts);
   const head = ['waypoint_id','waypoint_name','waypoint_type','waypoint_elevation',
@@ -2838,7 +2857,7 @@ function anpDeepLink(pts, elevs){
   return 'airnavpro://add-waypoints?coordinates=wgs84-decimal&waypoints=' + wps;
 }
 async function copyForWhatsApp(){
-  const pts = pointsForExport();
+  const pts = anavPointsForExport();
   if (!pts.length){ toast('No points to send yet.'); return; }
   const { elevs, src } = await anpElevations(pts);
   const lines = pts.map(({pt}, i) => `${i + 1}. ${pt.name} — ${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}`);
@@ -2860,6 +2879,29 @@ async function copyForWhatsApp(){
     : 'Select the text below and copy it — the browser would not let me use the clipboard.', 7000);
 }
 document.getElementById('expWaBtn').addEventListener('click', copyForWhatsApp);
+document.getElementById('anavMarkBtn').addEventListener('click', () => {
+  const sel = selectedPoints();
+  if (!sel.length){ toast('Select some points first, then mark them.'); return; }
+  let n = 0; sel.forEach(({pt}) => { if (!pt.anav){ pt.anav = true; n++; } });
+  refreshSelUI(); openPopupsRefresh(); scheduleAutosave();
+  toast(n ? `Marked ${n} point${n===1?'':'s'} for Air Navigation Pro.` : 'Those were already marked.');
+});
+document.getElementById('anavClearBtn').addEventListener('click', () => {
+  const marked = anavMarked();
+  if (!marked.length){ toast('Nothing is marked for Air Navigation Pro.'); return; }
+  marked.forEach(({pt}) => { delete pt.anav; });
+  refreshSelUI(); openPopupsRefresh(); scheduleAutosave();
+  toast(`Cleared ${marked.length} Air Navigation mark${marked.length===1?'':'s'}.`);
+});
+/* a popup left open while you bulk-mark would still show the old tick */
+function openPopupsRefresh(){
+  allMarkers.forEach(x => {
+    const pu = x.marker.getPopup();
+    if (pu && x.marker.isPopupOpen && x.marker.isPopupOpen()){
+      x.marker.setPopupContent(popupHTML(x.pt, x.ly)); wirePopup(pu, x.pt, x.ly);
+    }
+  });
+}
 /* bulk edit — apply an icon or a layer move to every selected point */
 const bulkTypeEl = document.getElementById('bulkType'), bulkDotEl = document.getElementById('bulkDot');
 function affRoleOptionsHTML(){
@@ -3899,7 +3941,7 @@ function serializeProject(opts = {}){
     customIcons: customIconsList(),
     layers: LAYERS.map(l => ({ key: l.key, name: l.name, defAff: l.defAff, defRole: l.defRole, defDotColor: l.defDotColor,
       visible: map.hasLayer(groups[l.key]),
-      points: DATA[l.key].map(p => ({ uid: p.uid, id: p.id, name: p.name, lat: p.lat, lon: p.lon, affKey: p.affKey, roleKey: p.roleKey, dotColor: p.dotColor, notes: p.notes, added: p.added,
+      points: DATA[l.key].map(p => ({ uid: p.uid, id: p.id, name: p.name, lat: p.lat, lon: p.lon, affKey: p.affKey, roleKey: p.roleKey, dotColor: p.dotColor, notes: p.notes, added: p.added, anav: p.anav || undefined,
         atts: files ? (p.atts || []).map(a => ({ name: a.name, type: a.type, dataURL: a.dataURL })) : undefined })) })),
     routes: Object.values(routes).map(rt => ({ uid: rt.uid, name: rt.name, color: rt.color, waypoints: rt.waypoints, segments: rt.segments, snapped: rt.snapped, exact: rt.exact || undefined })),
     shapes: Object.values(shapes).map(sh => ({ uid: sh.uid, kind: sh.kind, name: sh.name, color: sh.color, latlngs: sh.latlngs, center: sh.center, radius: sh.radius, notes: sh.notes })),
@@ -3932,7 +3974,7 @@ function loadProject(obj){
       (L0.points || []).forEach(p => {
         if (!isFinite(+p.lat) || !isFinite(+p.lon)) return;
         const pt = { uid: p.uid, id: p.id || '', name: p.name || 'Point', lat: +p.lat, lon: +p.lon,
-          dms: toDMSstr(+p.lat, +p.lon), affKey: p.affKey, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false,
+          dms: toDMSstr(+p.lat, +p.lon), affKey: p.affKey, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined,
           atts: (p.atts || []).filter(a => a && a.dataURL) };
         DATA[ly.key].push(pt);
         const m2 = pt.uid && String(pt.uid).match(/\.p(\d+)$/); if (m2) addedSeq = Math.max(addedSeq, +m2[1]);

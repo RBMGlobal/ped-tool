@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.9 · 29 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.10 · 30 August 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.9</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.10</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -703,6 +703,7 @@
             <tr><td class="mono">GPX (.gpx)</td><td>Points as waypoints, routes as stops plus their traced line — for Air Navigation Pro and any GPS app</td></tr>
             <tr><td class="mono">Air Navigation CSV</td><td>Waypoints with layer as tag, icon and colour — for bulk import via Air Navigation Manager</td></tr>
             <tr><td class="mono">Copy for WhatsApp</td><td>A message you can paste straight into a chat: the locations written out, plus a link that adds them to Air Navigation Pro</td></tr>
+            <tr><td class="mono">Send to Air Nav Pro</td><td>Tick box in a point’s popup — builds the pilot’s list separately from the TAK selection</td></tr>
           </tbody>
         </table>
       </div>
@@ -739,26 +740,41 @@
           "BP 3 (Dutsinma Rd)" becomes "BP 3 Dutsinma Rd".
         </p>
       </div>
+      <h3>Choosing which locations go</h3>
+      <p>
+        Open a point and you will find <strong>two</strong> tick boxes at the bottom of its popup:
+        <span class="ui">Select for TAK / KML export</span>, which you already know, and
+        <span class="ui">Send to Air Navigation Pro</span>. They are separate lists on purpose — the
+        set of grids a pilot needs is rarely the same as the set going into a data package, and
+        building one should not disturb the other. Marked points carry a dashed blue ring on the map
+        so you can see the pilot's list at a glance, and the count sits above the three export
+        buttons.
+      </p>
+      <p>
+        <span class="ui">Mark selected</span> turns whatever you currently have selected into marks
+        in one go — handy after a box-drag or <span class="ui">Select points in view</span>.
+        <span class="ui">Clear marks</span> empties the list.
+      </p>
       <div class="note note--ops">
-        <p class="note-l">Sending just a few locations</p>
+        <p class="note-l">What each export sends</p>
         <p>
-          Select the points first — tick them in their popups, <kbd>Shift</kbd>+drag a box, or
-          <span class="ui">Select points in view</span> — and all three carry <strong>only those,
-          with no routes attached</strong>. That is the normal way to send someone two or three
-          positions rather than the whole picture. Export with nothing selected and you get every
-          point, and the GPX brings your routes along too.
+          All three Air Navigation exports use the <strong>marked</strong> points. Mark nothing and
+          they fall back to what they did before: your TAK selection if you have one, otherwise
+          every point on the map. Whichever of the two is doing the work, they carry
+          <strong>only those points, with no routes attached</strong>.
         </p>
         <p>
-          <strong>To send one layer and nothing else</strong> — just the reported incidents, say, or
-          just the landing sites — untick every other layer in
-          <span class="ui">Layers — key &amp; filter</span>, then press
-          <span class="ui">Select points in view</span>. It only picks up points that are actually
-          showing, so a hidden layer is skipped entirely. The counter tells you how many it caught
-          before you export.
+          <strong>The GPX brings your routes along only when nothing is marked and nothing is
+          selected.</strong> That is the one case to watch — with both counters at 0, "export
+          everything" is taken literally. If you want every point but no routes, press
+          <span class="ui">Select points in view</span> with the whole AO in frame, or
+          <span class="ui">Mark selected</span> after it.
         </p>
         <p>
-          The counter is the thing to glance at either way: <strong>0 means your routes are going in
-          the file</strong>, any number above 0 means points only.
+          <strong>To send one layer and nothing else</strong> — just the reported incidents, say —
+          untick every other layer in <span class="ui">Layers — key &amp; filter</span>, press
+          <span class="ui">Select points in view</span> (it skips hidden layers entirely), then
+          <span class="ui">Mark selected</span> if you want that list to stick around.
         </p>
       </div>
       <p>
@@ -1006,6 +1022,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.10</td><td class="num">30 Aug 2026</td><td>A second tick box in each point’s popup, <span class="ui">Send to Air Navigation Pro</span>, so the pilot’s list is built and kept separately from the TAK selection. Marked points ring blue on the map; <span class="ui">Mark selected</span> and <span class="ui">Clear marks</span> sit above the exports, and the marks are saved with the project</td></tr>
             <tr><td class="mono">1.9</td><td class="num">29 Aug 2026</td><td><span class="ui">Copy for WhatsApp</span> — puts the selected locations on the clipboard as a message holding both a written-out list and an <code>airnavpro://</code> link that loads them into Air Navigation Pro in one tap</td></tr>
             <tr><td class="mono">1.8</td><td class="num">29 Aug 2026</td><td>Air Navigation Pro exports — GPX waypoints and routes for the app itself (a selection sends just those locations, no routes), and an Air Navigation Manager CSV that keeps layers as tags with icons and colours mapped across. A Manual link in the tool's header</td></tr>
             <tr><td class="mono">1.7</td><td class="num">28 Aug 2026</td><td>The phone number quoted with a location goes into that point's notes — each point gets its own number, not every number in the message</td></tr>
@@ -1022,7 +1039,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.9, 29 August 2026. Kept alongside
+        PED Field Manual · covers version 1.10, 30 August 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
