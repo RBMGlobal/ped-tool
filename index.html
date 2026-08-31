@@ -2230,10 +2230,10 @@ function tidyName(s){
     const n = t.replace(/[\s,;:.\-–—]*\b(?:and|on|at|in|is|was|using|located|around|near|vicinity|of|from|to|by|with|the|a|an)\b[\s,;:.\-–—]*$/i, '');
     if (!n || n === t) break; t = n;
   }
-  return t.replace(/^[\s\-–—:;,.!()]+|[\s\-–—:;,.!()]+$/g, '').slice(0, 60);
+  return t.replace(/^[\s\-–—:;,.!()\/|\\]+|[\s\-–—:;,.!()\/|\\]+$/g, '').slice(0, 60);
 }
 // text minus URLs, attachment markers, WhatsApp boilerplate — what's left can name a point
-function cleanName(s, max){
+function cleanName(s, max, fromEnd){
   return String(s||'')
     .replace(/https?:\/\/\S+/gi, ' ')
     .replace(/<attached:[^>]*>/gi, ' ')
@@ -2241,11 +2241,16 @@ function cleanName(s, max){
     .replace(/<?\b(?:image|video|audio|sticker|document|GIF|contact card|media)\s+omitted\b>?/gi, ' ')
     .replace(/\bthis message was (?:deleted|edited)\b/gi, ' ')
     .replace(/\b(?:live\s+)?location(?:\s+shared)?\b\s*:?/gi, ' ')
+    .replace(/\blat(?:itude)?\s*[\/|,&]\s*lon(?:g|gitude)?\b/gi, ' ')
     .replace(/\bMGRS\b|\bgrid\b|\blat\b|\blong?\b/gi, ' ')
+    .replace(/\bco-?ordinates?\b|\bcoords?\b|\bgrid\s*ref(?:erence)?\b/gi, ' ')
     .replace(/[|@#*_~]/g, ' ')
     .replace(/\s+/g, ' ')
     .replace(/^[\s\-–—:;,.!()]+|[\s\-–—:;,.!()]+$/g, '')
-    .slice(0, max || 60);
+    // Words nearest the coordinate are the ones that name it. For the text BEFORE a coordinate
+    // that means the end of the run, not the start — trimming from the wrong end left a point in
+    // a long sitrep sentence named from the middle of it, cut off mid-word.
+    .slice(fromEnd ? -(max || 60) : 0, fromEnd ? undefined : (max || 60));
 }
 // split an export into messages (continuation lines fold into the message above); plain text = one message per line
 function waMessages(text){
@@ -2286,15 +2291,34 @@ function scanTextForCoords(text){
     while ((m = reM.exec(line))){
       try { const ll = mgrs.toPoint(m[0].replace(/\s+/g,'').toUpperCase()); take(m, ll[1], ll[0], 'MGRS'); } catch(e){}
     }
-    // 2) DMS pairs — symbols (12°20′42.8″N 7°35′56.7″E) or plain (12 20 42.8 N 7 35 56.7 E)
+    // 2) DMS pairs. Field reporting does not use one set of symbols: seconds arrive as a double
+    // prime, an ASCII double quote, a curly quote, or — very commonly, because phone keyboards
+    // make it the easy key — two apostrophes in a row. Degrees come as ° or the masculine
+    // ordinal º. Lat and lon get separated by a comma, a pipe, a slash, or just a line break.
+    // Build the pattern from named pieces rather than one unreadable literal, and accept the lot.
+    const DEGMK = "[°º˚∘]";                                   // ° º ˚ ∘
+    const MINMK = "['’‘´`′]";                                 // ' ’ ‘ ´ ` ′
+    const SECMK = "(?:''|’’|´´|``|′′|[\"”“″])"; // '' ’’ ´´ `` ′′ " ” “ ″
+    const DMSNUM = `(\\d{1,3})\\s*${DEGMK}\\s*(\\d{1,2}(?:\\.\\d+)?)\\s*${MINMK}?\\s*(\\d{1,2}(?:\\.\\d+)?)?\\s*${SECMK}?`;
+    const LLSEP  = "[,;|/\\\\\\s]{1,8}";
     const dmsVal = (d, mn, sc) => (+d) + (+mn)/60 + (+(sc||0))/3600;
-    const reD1 = /(\d{1,3})\s?[°º]\s?(\d{1,2}(?:\.\d+)?)\s?[′'´]?\s?(\d{1,2}(?:\.\d+)?)?\s?[″"]?\s?([NS])[,;\s]{1,4}(\d{1,3})\s?[°º]\s?(\d{1,2}(?:\.\d+)?)\s?[′'´]?\s?(\d{1,2}(?:\.\d+)?)?\s?[″"]?\s?([EW])/gi;
+    const dmsOK  = (mn, sc) => +mn < 60 && (sc === undefined || +sc < 60);
+    const reD1  = new RegExp(`${DMSNUM}\\s*([NS])${LLSEP}${DMSNUM}\\s*([EW])`, 'gi');
     while ((m = reD1.exec(line))){
+      if (!dmsOK(m[2], m[3]) || !dmsOK(m[6], m[7])) continue;
       let lat = dmsVal(m[1], m[2], m[3]); if (/s/i.test(m[4])) lat = -lat;
       let lon = dmsVal(m[5], m[6], m[7]); if (/w/i.test(m[8])) lon = -lon;
       take(m, lat, lon, 'DMS');
     }
-    const reD2 = /\b(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([NS])[,;\s]{1,4}(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([EW])\b/gi;
+    // the same thing with the hemisphere written first — N 12° 16' 59.93'' E 7° 41' 29.61''
+    const reD1b = new RegExp(`\\b([NS])\\s*${DMSNUM}${LLSEP}([EW])\\s*${DMSNUM}`, 'gi');
+    while ((m = reD1b.exec(line))){
+      if (!dmsOK(m[3], m[4]) || !dmsOK(m[7], m[8])) continue;
+      let lat = dmsVal(m[2], m[3], m[4]); if (/s/i.test(m[1])) lat = -lat;
+      let lon = dmsVal(m[6], m[7], m[8]); if (/w/i.test(m[5])) lon = -lon;
+      take(m, lat, lon, 'DMS');
+    }
+    const reD2 = /\b(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([NS])[,;|/\\\s]{1,8}(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([EW])\b/gi;
     while ((m = reD2.exec(line))){
       let lat = dmsVal(m[1], m[2], m[3]); if (/s/i.test(m[4])) lat = -lat;
       let lon = dmsVal(m[5], m[6], m[7]); if (/w/i.test(m[8])) lon = -lon;
@@ -2304,7 +2328,7 @@ function scanTextForCoords(text){
     const reK = /lat[a-z]*\.?\s*[:=]?\s*(-?\d{1,3}\.\d+)\s?[°º]?[\s\S]{0,12}?lo?ng?[a-z]*\.?\s*[:=]?\s*(-?\d{1,3}\.\d+)/gi;
     while ((m = reK.exec(line))) take(m, +m[1], +m[2], 'dec');
     // 4) plain decimal pairs — both numbers need ≥2 decimal places (kills dates, versions, phone numbers)
-    const reP = /(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([NS])?\s*[,;\s]\s*(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([EW])?/g;
+    const reP = /(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([NS])?\s*[,;|/\\\s]\s*(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([EW])?/g;
     while ((m = reP.exec(line))){
       let a = +m[1], b = +m[3];
       if (m[2] && /s/i.test(m[2])) a = -Math.abs(a);
@@ -2324,7 +2348,7 @@ function scanTextForCoords(text){
       before: line.slice(i ? kept[i-1].e : 0, h.s),
       after:  line.slice(h.e, i + 1 < kept.length ? kept[i+1].s : line.length)
     }));
-    const names = kept.map((h, i) => tidyName(cleanName(segs[i].before, 200)) || tidyName(cleanName(segs[i].after, 200)));
+    const names = kept.map((h, i) => tidyName(cleanName(segs[i].before, 200, true)) || tidyName(cleanName(segs[i].after, 200)));
     // a shared pin carries no words of its own — borrow the message either side from the same person
     if (isWa && msg.sender && !names.some(Boolean)){
       let borrowed = '';
@@ -2372,7 +2396,7 @@ function renderBulkPreview(items, sourceName){
   const short = items.shortLinks || 0;
   const shortNote = short ? ` ${short} shared pin${short===1?'':'s'} use a maps.app.goo.gl short link, which carries no coordinates — open ${short===1?'it':'them'} in a browser and paste the full URL.` : '';
   if (!items.length){
-    prev.innerHTML = `<div class="bp-head">No coordinates found${sourceName ? ' in ' + esc(sourceName) : ''}.${shortNote} Formats read: 9.0765, 7.3986 · 9°04′33.6″N 7°23′52.8″E · 32PLU4768065126 · shared WhatsApp pins.</div>`;
+    prev.innerHTML = `<div class="bp-head">No coordinates found${sourceName ? ' in ' + esc(sourceName) : ''}.${shortNote} Formats read: 9.0765, 7.3986 · 9°04′33.6″N 7°23′52.8″E · 9° 04' 33.6'' N | 7° 23' 52.8'' E · 32PLU4768065126 · shared WhatsApp pins.</div>`;
     return;
   }
   const dupOf = p => allMarkers.some(x => Math.abs(x.pt.lat - p.lat) < 1.5e-4 && Math.abs(x.pt.lon - p.lon) < 1.5e-4);
@@ -3454,10 +3478,20 @@ function parseCoord(fmt, raw){
       return { lat: ll[1], lon: ll[0] };
     }
     if (fmt === 'dms') {
-      const m = s.replace(/[’′]/g,"'").replace(/[”″]/g,'"').match(/(\d+(?:\.\d+)?)[°\s]+(\d+(?:\.\d+)?)['\s]+(\d+(?:\.\d+)?)"?\s*([NSEW])/gi);
+      // Fold every way the marks get typed down to ° ' " before reading it. Two apostrophes in
+      // a row are seconds, not two minute marks — phone keyboards make that the easy key and it
+      // turns up in a lot of pasted reporting.
+      const t0 = s.replace(/[’‘´`′]/g, "'").replace(/[”“″]/g, '"').replace(/''/g, '"').replace(/[º˚∘]/g, '°');
+      const ONE = /(\d{1,3})\s*[°\s]\s*(\d{1,2}(?:\.\d+)?)\s*['\s]?\s*(\d{1,2}(?:\.\d+)?)?\s*"?\s*([NSEW])/i;
+      const m = t0.match(new RegExp(ONE.source, 'gi'));
       if (!m || m.length < 2) return { err:'Use e.g. 12°20′42.8″N 7°35′56.7″E' };
-      const one = t => { const p = t.match(/(\d+(?:\.\d+)?)[°\s]+(\d+(?:\.\d+)?)['\s]+(\d+(?:\.\d+)?)"?\s*([NSEW])/i); let v=+p[1]+ +p[2]/60 + +p[3]/3600; if(/[SW]/i.test(p[4])) v=-v; return { v, hem:p[4].toUpperCase() }; };
+      const one = t => { const p = t.match(ONE);
+        if (+p[2] >= 60 || (p[3] !== undefined && +p[3] >= 60)) return null;
+        let v = +p[1] + (+p[2])/60 + (+(p[3]||0))/3600;
+        if (/[SW]/i.test(p[4])) v = -v; return { v, hem: p[4].toUpperCase() }; };
       const a = one(m[0]), b = one(m[1]);
+      if (!a || !b) return { err:'Minutes and seconds must be under 60.' };
+      if (/[NS]/.test(a.hem) === /[NS]/.test(b.hem)) return { err:'Needs one N/S value and one E/W value.' };
       const lat = /[NS]/.test(a.hem) ? a.v : b.v, lon = /[EW]/.test(a.hem) ? a.v : b.v;
       return { lat, lon };
     }
