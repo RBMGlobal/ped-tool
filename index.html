@@ -305,12 +305,12 @@
     <div id="s2cfg">
       <input id="s2Inst" type="text" placeholder="Copernicus instance ID — enables Sentinel-2" autocomplete="off" spellcheck="false">
       <div class="s2row">
-        <label>Layer <input id="s2Layer" type="text" value="TRUE-COLOR" spellcheck="false" autocomplete="off"></label>
+        <label>Layer <input id="s2Layer" type="text" value="TRUE-COLOR-S2L2A" spellcheck="false" autocomplete="off"></label>
         <label>Up to <input id="s2To" type="date"></label>
         <label>Window <select id="s2Days"><option value="5">5 d</option><option value="10">10 d</option><option value="20" selected>20 d</option><option value="30">30 d</option><option value="60">60 d</option><option value="120">120 d</option></select></label>
         <label>Cloud ≤ <select id="s2Cc"><option>10</option><option selected>20</option><option>40</option><option>60</option><option>100</option></select>%</label>
       </div>
-      <div class="addhint" style="margin-top:2px">Shows the most recent Sentinel-2 pass in the window that is under the cloud limit. Free account at dataspace.copernicus.eu → Sentinel Hub dashboard → Configuration Utility → copy the instance ID (its layer for true colour is usually <span class="mono">TRUE-COLOR</span>). Free tier is about 10,000 tiles a month — zoom to where you need it before switching. Kept in this browser only, never in a project file.</div>
+      <div class="addhint" style="margin-top:2px">Shows the most recent Sentinel-2 pass in the window that is under the cloud limit; the corner chip names the pass and its cloud cover. A team instance ID ships in this file (tile use counts against that Copernicus account — 30,000 tiles a month; recreate it at dataspace.copernicus.eu → Configuration Utility if needed). Typing here overrides it for this browser; IDs are never saved into shared project files.</div>
     </div>
     <input id="search" type="search" placeholder="Find a point by name…" autocomplete="off" style="margin-top:6px">
     <div id="results"></div>
@@ -471,9 +471,10 @@
       everything stays in this file/browser. Tile requests go to the provider of the basemap
       you pick: OSM, Esri (Satellite / Sat hybrid), OpenTopoMap, Google (Google hyb),
       Mapbox (Mapbox hyb — needs your own token, kept in this browser only) or Copernicus
-      (Sentinel-2 — sh.dataspace.copernicus.eu, needs your own free instance ID, kept in this
-      browser only; the map area, the date window and that ID go to ESA's service, plus one
-      small catalogue query per pan for the date chip). Note “Google hyb”
+      (Sentinel-2 — sh.dataspace.copernicus.eu; a team instance ID ships in this file and the
+      field under the basemap buttons overrides it per browser; the map area, the date window
+      and that ID go to ESA's service, plus one small catalogue query per pan for the date
+      chip). Note “Google hyb”
       uses the unofficial tile endpoint common in ATAK map-source files, not the paid Google
       API — it can break without notice and its use is a Google-ToS grey area; make it a
       team decision. Imagery age: on Satellite / Sat hybrid a small corner chip shows when
@@ -1473,7 +1474,12 @@ const bases = {
    roads, as Sat hybrid already does — same hosts, nothing new leaves the device.
    Not offered: the EOX "Sentinel-2 cloudless" mosaic most sites use — it is CC BY-NC-SA, i.e.
    non-commercial, which this tool's users are not. */
-const S2 = { inst: '', layer: 'TRUE-COLOR', to: '', days: 20, cc: 20 };
+// Team default instance (created on the RBM Copernicus account, 1 Sep 2026 — "PED tool" in its
+// Configuration Utility). Same deal as the Mapbox token above: usable by anyone with this file,
+// tile quota (30,000/month) counts against that account, delete or recreate it in the dashboard
+// to rotate. The field below overrides it for this browser.
+const S2_INST_DEFAULT = '691e4b42-9fee-497d-86c5-dd483e77ee41';
+const S2 = { inst: S2_INST_DEFAULT, layer: 'TRUE-COLOR-S2L2A', to: '', days: 20, cc: 20 };
 function s2Window(){
   const to = S2.to && /^\d{4}-\d{2}-\d{2}$/.test(S2.to) ? S2.to : new Date().toISOString().slice(0,10);
   const d = new Date(to + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - (+S2.days || 20));
@@ -1483,7 +1489,7 @@ function rebuildS2(){
   if (!S2.inst){ bases.s2.layers = []; return; }
   const w = s2Window();
   const img = L.tileLayer.wms(`https://sh.dataspace.copernicus.eu/ogc/wms/${encodeURIComponent(S2.inst)}`, {
-    layers: S2.layer || 'TRUE-COLOR', format: 'image/png', transparent: true, tileSize: 512,
+    layers: S2.layer || 'TRUE-COLOR-S2L2A', format: 'image/png', transparent: true, tileSize: 512,
     time: `${w.from}/${w.to}`, maxcc: +S2.cc || 20, priority: 'mostRecent', showlogo: false,
     minZoom: 8, maxZoom: 18, maxNativeZoom: 15,
     attribution: `Contains modified Copernicus Sentinel data ${w.to.slice(0,4)} &middot; Copernicus Data Space Ecosystem`
@@ -1519,7 +1525,7 @@ function setBase(k){
   if (k === 's2'){
     document.getElementById('s2cfg').classList.add('show');
     if (S2.inst && !bases.s2.layers.length) rebuildS2();
-    if (!bases.s2.layers.length){ toast('Sentinel-2 needs a Copernicus instance ID — free account at dataspace.copernicus.eu, then paste the ID into the field under the basemap buttons.', 8000); return; }
+    if (!bases.s2.layers.length){ toast('Sentinel-2 needs an instance ID — the field under the basemap buttons is empty. Restore the team ID or paste your own (free account at dataspace.copernicus.eu).', 8000); return; }
     if (map.getZoom() < 8) toast('Sentinel-2 tiles start at zoom 8 — zoom in to the area you want.', 5000);
   }
   bases[curBase].layers.forEach(l => map.removeLayer(l));
@@ -1532,7 +1538,7 @@ function setBase(k){
 }
 Object.keys(bases).forEach(k => document.getElementById('bm-'+k).addEventListener('click', () => setBase(k)));
 document.getElementById('s2Inst').addEventListener('input', e => { S2.inst = e.target.value.trim(); s2Apply(); });
-document.getElementById('s2Layer').addEventListener('change', e => { S2.layer = e.target.value.trim() || 'TRUE-COLOR'; e.target.value = S2.layer; s2Apply(); });
+document.getElementById('s2Layer').addEventListener('change', e => { S2.layer = e.target.value.trim() || 'TRUE-COLOR-S2L2A'; e.target.value = S2.layer; s2Apply(); });
 document.getElementById('s2To').addEventListener('change', e => { S2.to = e.target.value; s2Apply(); });
 document.getElementById('s2Days').addEventListener('change', e => { S2.days = +e.target.value; s2Apply(); });
 document.getElementById('s2Cc').addEventListener('change', e => { S2.cc = +e.target.value; s2Apply(); });
@@ -4814,7 +4820,7 @@ function saveUI(){
     // sec-help defaults closed, everything else open — the saved list wins either way
     document.querySelectorAll('details.sec').forEach(d => { d.open = !(prefs.closed || []).includes(d.id); });
     if (prefs.mb) MB_TOKEN = prefs.mb;
-    if (prefs.s2 && prefs.s2.inst){ S2.inst = String(prefs.s2.inst); S2.layer = prefs.s2.layer || 'TRUE-COLOR'; S2.to = prefs.s2.to || ''; S2.days = +prefs.s2.days || 20; S2.cc = +prefs.s2.cc || 20; }
+    if (prefs.s2 && prefs.s2.inst){ S2.inst = String(prefs.s2.inst); S2.layer = prefs.s2.layer || 'TRUE-COLOR-S2L2A'; S2.to = prefs.s2.to || ''; S2.days = +prefs.s2.days || 20; S2.cc = +prefs.s2.cc || 20; }
     if (prefs.ask === false) document.getElementById('askName').checked = false;   // on unless turned off
   }
   document.getElementById('s2Inst').value = S2.inst; document.getElementById('s2Layer').value = S2.layer;
