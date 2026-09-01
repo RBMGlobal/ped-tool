@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.15 · 31 August 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.16 · 1 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.15</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.16</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -534,7 +534,7 @@
             <tr><td class="mono">.docx / .pptx / .txt</td><td>The text is pulled out and scanned for coordinates</td></tr>
             <tr><td class="mono">.tif / .tiff</td><td>A georeferenced GeoTIFF, placed as an imagery overlay</td></tr>
             <tr><td class="mono">.png / .jpg</td><td>An image overlay you position by hand — a map photo, a screenshot, an annex sketch</td></tr>
-            <tr><td class="mono">.json</td><td>A saved PED project — replaces what is open</td></tr>
+            <tr><td class="mono">.json</td><td>A saved PED project — replaces what is open. If the map is not empty it asks first, and if the file turns out to be unreadable the previous project is put back</td></tr>
           </tbody>
         </table>
       </div>
@@ -577,6 +577,14 @@
         ° or º. Lat and lon can be separated by a comma, a semicolon, a pipe, a slash or nothing
         but a space, and the hemisphere letter can come before the numbers instead of after. What
         it will not accept is minutes or seconds of 60 or more, because those are not coordinates.
+        A date-time group (“12 Sep 2026 1230”) is never read as a grid reference, even though it
+        has the same shape as one.
+      </p>
+      <p>
+        <b>The single-coordinate box reads what you typed, not what the dropdown says.</b> Leave it
+        on Decimal and paste DMS or an MGRS grid and it works out which it is. Two numbers with
+        letters before or after them (<span class="mono">S12.5 E7.6</span>, <span class="mono">7.6E 12.5N</span>)
+        are read with the letters deciding which is which.
       </p>
       <p>
         A number needs at least two decimal places to count, which is what stops dates, version
@@ -1156,6 +1164,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.16</td><td class="num">1 Sep 2026</td><td>Full audit pass. <strong>Wrong-position bugs fixed:</strong> a date-time group such as “12 Sep 2026 1230” was read as an MGRS grid and plotted on another continent; a date like 31.08.2026 could be read from its second dot as a decimal pair; the coordinate box on “decimal” plotted 12.0, 20.0 when given DMS; a CSV of DMS cells imported as whole degrees. <strong>Data safety:</strong> loading a bad or foreign project file no longer empties the map first — it asks before replacing live work and puts the previous project back if the load fails; browser autosave now says so when it has stopped working; undo and moves into a hidden layer un-hide it. <strong>Also:</strong> Air Nav IDs can no longer be duplicated by undo; “exported” is only shown once the file has gone; team icons round-trip through TAK; MultiPolygon/MultiPoint GeoJSON imports; unclosed KML/GeoJSON rings keep their last vertex; KML coordinates with spaces after commas; GPX “no fix” 0,0 points dropped; several naming fixes for pasted text; package stamps carry seconds</td></tr>
             <tr><td class="mono">1.15</td><td class="num">31 Aug 2026</td><td>Bulk paste reads DMS however the marks are typed — two apostrophes for seconds, º for degrees, pipe or slash between lat and lon, hemisphere letter first; minutes or seconds of 60+ rejected</td></tr>
             <tr><td class="mono">1.14</td><td class="num">30 Aug 2026</td><td>Maintenance pass over everything added this week. <strong>Fixed:</strong> exporting a large set of similarly named points could lock the tool up; a marker's popup could keep showing its old symbol after a bulk change; notes, names containing “·” and layer names containing an em dash could be mangled by a TAK round trip; an attachment could attach itself to the wrong marker; dropping several files at once could silently lose one. <strong>Faster:</strong> adding points no longer slows down as the project grows — a 300-point import is about five times quicker</td></tr>
             <tr><td class="mono">1.13</td><td class="num">30 Aug 2026</td><td>Every export asks for a file name first, with the generated one filled in and the name part selected — <kbd>Enter</kbd> accepts, <kbd>Esc</kbd> cancels. The per-layer export asks once for the whole batch. Names are folded to plain characters, because a browser silently saves a name it dislikes as <code>download</code>. Turn the asking off under the export buttons</td></tr>
@@ -1178,7 +1187,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.15, 31 August 2026. Kept alongside
+        PED Field Manual · covers version 1.16, 1 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
