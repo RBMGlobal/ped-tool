@@ -223,6 +223,14 @@
   #imgDate { display: none; position: absolute; z-index: 800; right: 10px; bottom: 22px; background: color-mix(in srgb, var(--surface-1) 88%, transparent); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; font-family: ui-monospace,Menlo,Consolas,monospace; font-size: 10.5px; color: var(--muted); pointer-events: none; white-space: nowrap; }
   .bm-grid { flex-wrap: wrap; }
   .bm-grid button { flex: 1 1 31%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #s2cfg { display: none; }
+  #s2cfg.show { display: block; }
+  #s2cfg input[type=text] { width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; font-size: 12px; font-family: ui-monospace,Menlo,Consolas,monospace; border: 1px solid var(--border); border-radius: 8px; }
+  .s2row { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; font-size: 12px; align-items: center; }
+  .s2row label { display: inline-flex; align-items: center; gap: 4px; }
+  .s2row input, .s2row select { font: inherit; font-size: 12px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 6px; }
+  .s2row input[type=text] { width: 110px; margin: 0; }
+  .s2row input[type=date] { width: 138px; }
   #mbToken { width: 100%; margin-top: 6px; padding: 6px 8px; font: inherit; font-size: 12px; font-family: ui-monospace,Menlo,Consolas,monospace; border: 1px solid var(--border); border-radius: 8px; background: var(--page); color: var(--ink-1); }
   #drawBar { display: none; position: absolute; z-index: 1250; left: 50%; top: 12px; transform: translateX(-50%); gap: 8px; }
   #drawBar button { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-1); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
@@ -290,9 +298,20 @@
       <button id="bm-topo">Terrain</button>
       <button id="bm-ghyb" title="Unofficial Google tile endpoint — can break, and is a Google ToS grey area; your call">Google hyb</button>
       <button id="bm-mbhyb" title="Needs your Mapbox access token (free at mapbox.com) — enter it below">Mapbox hyb</button>
+      <button id="bm-s2" title="ESA Sentinel-2, 10 m, every scene dated, new pass every 2–5 days — needs a free Copernicus Data Space account (instance ID below)">Sentinel-2</button>
     </div>
     <input id="mbToken" type="text" placeholder="Mapbox access token (pk.…) — enables Mapbox hybrid" autocomplete="off" spellcheck="false">
     <div class="addhint" style="margin-top:2px">A team default token ships in this file (usage counts against that Mapbox account — rotate it at account.mapbox.com if needed). Typing here overrides it for this browser; tokens are never saved into shared project files.</div>
+    <div id="s2cfg">
+      <input id="s2Inst" type="text" placeholder="Copernicus instance ID — enables Sentinel-2" autocomplete="off" spellcheck="false">
+      <div class="s2row">
+        <label>Layer <input id="s2Layer" type="text" value="TRUE-COLOR" spellcheck="false" autocomplete="off"></label>
+        <label>Up to <input id="s2To" type="date"></label>
+        <label>Window <select id="s2Days"><option value="5">5 d</option><option value="10">10 d</option><option value="20" selected>20 d</option><option value="30">30 d</option><option value="60">60 d</option><option value="120">120 d</option></select></label>
+        <label>Cloud ≤ <select id="s2Cc"><option>10</option><option selected>20</option><option>40</option><option>60</option><option>100</option></select>%</label>
+      </div>
+      <div class="addhint" style="margin-top:2px">Shows the most recent Sentinel-2 pass in the window that is under the cloud limit. Free account at dataspace.copernicus.eu → Sentinel Hub dashboard → Configuration Utility → copy the instance ID (its layer for true colour is usually <span class="mono">TRUE-COLOR</span>). Free tier is about 10,000 tiles a month — zoom to where you need it before switching. Kept in this browser only, never in a project file.</div>
+    </div>
     <input id="search" type="search" placeholder="Find a point by name…" autocomplete="off" style="margin-top:6px">
     <div id="results"></div>
     <button class="toolbtn" id="fitBtn">Zoom to everything</button>
@@ -450,14 +469,18 @@
       OPSEC: basemap tiles, “Snap to roads” (router.project-osrm.org) and the Google-Maps
       links are the only things that leave this device — work offline or untick them and
       everything stays in this file/browser. Tile requests go to the provider of the basemap
-      you pick: OSM, Esri (Satellite / Sat hybrid), OpenTopoMap, Google (Google hyb) or
-      Mapbox (Mapbox hyb — needs your own token, kept in this browser only). Note “Google hyb”
+      you pick: OSM, Esri (Satellite / Sat hybrid), OpenTopoMap, Google (Google hyb),
+      Mapbox (Mapbox hyb — needs your own token, kept in this browser only) or Copernicus
+      (Sentinel-2 — sh.dataspace.copernicus.eu, needs your own free instance ID, kept in this
+      browser only; the map area, the date window and that ID go to ESA's service, plus one
+      small catalogue query per pan for the date chip). Note “Google hyb”
       uses the unofficial tile endpoint common in ATAK map-source files, not the paid Google
       API — it can break without notice and its use is a Google-ToS grey area; make it a
       team decision. Imagery age: on Satellite / Sat hybrid a small corner chip shows when
       the imagery at the centre of the view was captured (queries Esri's metadata service —
       needs internet), and “Imagery capture date” in Map &amp; basemap gives full details for
-      any clicked point. Google and Mapbox don't publish capture dates for their tiles.
+      any clicked point. Google and Mapbox don't publish capture dates for their tiles;
+      Sentinel-2 shows the exact pass date and cloud cover of what is on screen.
       Terrain: “Hillshade relief” shades valleys and drainage over any basemap (Esri tiles);
       “Elevation profile” cross-sections two clicked points — and each route card's “Profile”
       button sections the whole route — with relief, climb and max slope from a 30 m elevation
@@ -1441,7 +1464,42 @@ const bases = {
   // Not the paid Maps API: it can break without notice and sits in a Google-ToS grey area.
   ghyb:    { layers: [ wireTileWarn(L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { subdomains: ['mt0','mt1','mt2','mt3'], maxZoom: 20, attribution: 'Imagery &amp; map &copy; Google' })) ] },
   mbhyb:   { layers: [] },   // built from the user's token (never stored in project files)
+  s2:      { layers: [] },   // built from the user's Copernicus instance id (same rule)
 };
+/* Sentinel-2 straight from the Copernicus Data Space Ecosystem: ESA's own scenes at 10 m, every
+   pass dated, served through the account holder's OGC instance. The WMS picks the most recent
+   scene inside the TIME window that is under MAXCC cloud, so the picture is "latest usable pass
+   up to <date>" rather than a stale mosaic. Esri's reference layers ride on top for names and
+   roads, as Sat hybrid already does — same hosts, nothing new leaves the device.
+   Not offered: the EOX "Sentinel-2 cloudless" mosaic most sites use — it is CC BY-NC-SA, i.e.
+   non-commercial, which this tool's users are not. */
+const S2 = { inst: '', layer: 'TRUE-COLOR', to: '', days: 20, cc: 20 };
+function s2Window(){
+  const to = S2.to && /^\d{4}-\d{2}-\d{2}$/.test(S2.to) ? S2.to : new Date().toISOString().slice(0,10);
+  const d = new Date(to + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - (+S2.days || 20));
+  return { from: d.toISOString().slice(0,10), to };
+}
+function rebuildS2(){
+  if (!S2.inst){ bases.s2.layers = []; return; }
+  const w = s2Window();
+  const img = L.tileLayer.wms(`https://sh.dataspace.copernicus.eu/ogc/wms/${encodeURIComponent(S2.inst)}`, {
+    layers: S2.layer || 'TRUE-COLOR', format: 'image/png', transparent: true, tileSize: 512,
+    time: `${w.from}/${w.to}`, maxcc: +S2.cc || 20, priority: 'mostRecent', showlogo: false,
+    minZoom: 8, maxZoom: 18, maxNativeZoom: 15,
+    attribution: `Contains modified Copernicus Sentinel data ${w.to.slice(0,4)} &middot; Copernicus Data Space Ecosystem`
+  });
+  bases.s2.layers = [ wireTileWarn(img),
+    wireTileWarn(L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '' })),
+    wireTileWarn(L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: '' })) ];
+}
+function s2Apply(){
+  const active = curBase === 's2';
+  if (active) bases.s2.layers.forEach(l => map.removeLayer(l));
+  rebuildS2();
+  if (active){ if (bases.s2.layers.length) bases.s2.layers.forEach(l => l.addTo(map)); else setBase('sat'); }
+  if (typeof refreshImgDateSoon === 'function'){ if (typeof imgDateCache !== 'undefined') imgDateCache.clear(); refreshImgDateSoon(); }
+  if (typeof saveUI === 'function') saveUI();
+}
 // Team default Mapbox token (public pk.* scope — safe client-side; anyone with this file can
 // use its quota. Rotate at account.mapbox.com if needed; the field below overrides it.)
 const MB_TOKEN_DEFAULT = 'pk.eyJ1Ijoicm9iZXJ0bWNwaGVyc29ucm0iLCJhIjoiY210N203ZGk2MHR3OTJ3czVtcGV5enc2NSJ9.5jU7dTETpaQqG4JYFV1VCQ';
@@ -1458,6 +1516,12 @@ function setBase(k){
     if (MB_TOKEN && !bases.mbhyb.layers.length) rebuildMapbox();
     if (!bases.mbhyb.layers.length){ toast('Mapbox hybrid needs your access token (pk.…) — paste it into the field under the basemap buttons (free at mapbox.com).', 7000); return; }
   }
+  if (k === 's2'){
+    document.getElementById('s2cfg').classList.add('show');
+    if (S2.inst && !bases.s2.layers.length) rebuildS2();
+    if (!bases.s2.layers.length){ toast('Sentinel-2 needs a Copernicus instance ID — free account at dataspace.copernicus.eu, then paste the ID into the field under the basemap buttons.', 8000); return; }
+    if (map.getZoom() < 8) toast('Sentinel-2 tiles start at zoom 8 — zoom in to the area you want.', 5000);
+  }
   bases[curBase].layers.forEach(l => map.removeLayer(l));
   bases[k].layers.forEach(l => l.addTo(map));
   document.getElementById('bm-'+curBase).classList.remove('on');
@@ -1467,6 +1531,12 @@ function setBase(k){
   scheduleAutosave();
 }
 Object.keys(bases).forEach(k => document.getElementById('bm-'+k).addEventListener('click', () => setBase(k)));
+document.getElementById('s2Inst').addEventListener('input', e => { S2.inst = e.target.value.trim(); s2Apply(); });
+document.getElementById('s2Layer').addEventListener('change', e => { S2.layer = e.target.value.trim() || 'TRUE-COLOR'; e.target.value = S2.layer; s2Apply(); });
+document.getElementById('s2To').addEventListener('change', e => { S2.to = e.target.value; s2Apply(); });
+document.getElementById('s2Days').addEventListener('change', e => { S2.days = +e.target.value; s2Apply(); });
+document.getElementById('s2Cc').addEventListener('change', e => { S2.cc = +e.target.value; s2Apply(); });
+document.getElementById('bm-s2').addEventListener('click', () => document.getElementById('s2cfg').classList.add('show'));
 document.getElementById('mbToken').addEventListener('input', e => {
   MB_TOKEN = e.target.value.trim();
   const active = curBase === 'mbhyb';
@@ -4242,7 +4312,41 @@ const imgDateEl = document.getElementById('imgDate');
 const imgDateCache = new Map();
 let _idT = null, _idSeq = 0;
 function refreshImgDateSoon(){ clearTimeout(_idT); _idT = setTimeout(refreshImgDate, 700); }
+/* Which pass is on screen? The tiles do not say, but the same instance answers a catalogue query
+   (WFS, Sentinel-2 L2A = DSS2) with every scene over the point in the window, dated. Take the
+   most recent one under the cloud limit — the same rule the tiles used. One small request per
+   pan, cached by cell; if the service will not answer a browser directly, the chip falls back to
+   stating the window it was asked for, which is still true. */
+async function fetchS2Meta(lat, lng){
+  if (!S2.inst) return null;
+  const w = s2Window();
+  const d = 0.01, bbox = `${lng-d},${lat-d},${lng+d},${lat+d}`;
+  const url = `https://sh.dataspace.copernicus.eu/ogc/wfs/${encodeURIComponent(S2.inst)}?SERVICE=WFS&REQUEST=GetFeature&TYPENAMES=DSS2&OUTPUTFORMAT=application/json&SRSNAME=EPSG:4326&MAXFEATURES=50&BBOX=${bbox}&TIME=${w.from}/${w.to}`;
+  const fallback = { dateStr: `latest pass to ${w.to}, ${S2.days} d window, cloud ≤ ${S2.cc}%`, res: 10, s2: true };
+  try {
+    const r = await fetchT(url, 8000); if (!r.ok) return fallback;
+    const j = await r.json();
+    const feats = (j.features || []).map(f => f.properties || {})
+      .map(pr => ({ date: String(pr.date || pr.time || pr.datetime || '').slice(0,10), cc: +(pr.cloudCoverPercentage ?? pr.cloudCover ?? pr.cloud_cover ?? 0) }))
+      .filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.cc <= (+S2.cc || 20))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (!feats.length) return { dateStr: `no pass under ${S2.cc}% cloud in the ${S2.days} d to ${w.to} — widen the window or raise the cloud limit`, res: 10, s2: true, none: true };
+    return { dateStr: `Sentinel-2 pass ${feats[0].date}${isFinite(feats[0].cc) ? ` · ${Math.round(feats[0].cc)}% cloud` : ''}`, res: 10, s2: true };
+  } catch(e){ return fallback; }
+}
 async function refreshImgDate(){
+  if (curBase === 's2'){
+    if (!S2.inst){ imgDateEl.style.display = 'none'; return; }
+    const c = map.getCenter(), w = s2Window();
+    const key = `s2|${w.from}|${w.to}|${S2.cc}|${Math.round(c.lat * 20) / 20}|${Math.round(c.lng * 20) / 20}`;
+    const seq = ++_idSeq;
+    if (imgDateCache.has(key)){ renderImgDate(imgDateCache.get(key)); return; }
+    const info = await fetchS2Meta(c.lat, c.lng);
+    if (seq !== _idSeq) return;
+    if (info){ if (imgDateCache.size > 300) imgDateCache.clear(); imgDateCache.set(key, info); }
+    renderImgDate(info);
+    return;
+  }
   if (!(curBase === 'sat' || curBase === 'esrihyb')){ imgDateEl.style.display = 'none'; return; }
   const c = map.getCenter();
   const key = `${map.getZoom() >= 12 ? 'h' : 'l'}|${Math.round(c.lat * 20) / 20}|${Math.round(c.lng * 20) / 20}`;   // ~5 km cells — imagery footprints are large
@@ -4257,7 +4361,7 @@ async function refreshImgDate(){
 function renderImgDate(info){
   if (!info){ imgDateEl.style.display = 'none'; return; }
   imgDateEl.textContent = info.dateStr
-    ? `imagery ${info.dateStr}${info.res ? ' · ' + info.res + ' m' : ''}`
+    ? (info.s2 ? `${info.dateStr}${info.none ? '' : ' · 10 m'}` : `imagery ${info.dateStr}${info.res ? ' · ' + info.res + ' m' : ''}`)
     : 'imagery date n/a at this zoom';
   imgDateEl.style.display = 'block';
 }
@@ -4697,7 +4801,8 @@ function saveUI(){
     const closed = [...document.querySelectorAll('details.sec')].filter(d => !d.open).map(d => d.id);
     const w = parseInt(getComputedStyle(document.getElementById('panel')).width, 10);
     const ask = document.getElementById('askName').checked;
-    localStorage.setItem(UIKEY, JSON.stringify({ w, closed, mb: MB_TOKEN || undefined, ask }));
+    localStorage.setItem(UIKEY, JSON.stringify({ w, closed, mb: MB_TOKEN || undefined, ask,
+      s2: S2.inst ? { inst: S2.inst, layer: S2.layer, to: S2.to || undefined, days: S2.days, cc: S2.cc } : undefined }));
   } catch(e){}
 }
 (function(){
@@ -4709,8 +4814,12 @@ function saveUI(){
     // sec-help defaults closed, everything else open — the saved list wins either way
     document.querySelectorAll('details.sec').forEach(d => { d.open = !(prefs.closed || []).includes(d.id); });
     if (prefs.mb) MB_TOKEN = prefs.mb;
+    if (prefs.s2 && prefs.s2.inst){ S2.inst = String(prefs.s2.inst); S2.layer = prefs.s2.layer || 'TRUE-COLOR'; S2.to = prefs.s2.to || ''; S2.days = +prefs.s2.days || 20; S2.cc = +prefs.s2.cc || 20; }
     if (prefs.ask === false) document.getElementById('askName').checked = false;   // on unless turned off
   }
+  document.getElementById('s2Inst').value = S2.inst; document.getElementById('s2Layer').value = S2.layer;
+  document.getElementById('s2To').value = S2.to; document.getElementById('s2Days').value = String(S2.days); document.getElementById('s2Cc').value = String(S2.cc);
+  if (S2.inst){ document.getElementById('s2cfg').classList.add('show'); rebuildS2(); }
   document.getElementById('askName').addEventListener('change', saveUI);
   document.getElementById('mbToken').value = MB_TOKEN;
   if (MB_TOKEN) rebuildMapbox();

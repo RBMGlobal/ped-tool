@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.16 · 1 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.17 · 1 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.16</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.17</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -412,8 +412,35 @@
             <tr><td class="mono">Terrain</td><td>OpenTopoMap</td><td>Contours and relief</td></tr>
             <tr><td class="mono">Google hyb</td><td>Unofficial Google endpoint</td><td>When Google's imagery is clearly better. See the warning below</td></tr>
             <tr><td class="mono">Mapbox hyb</td><td>Mapbox satellite-streets</td><td>Alternative imagery; uses the team token, or paste your own</td></tr>
+            <tr><td class="mono">Sentinel-2</td><td>ESA Copernicus, via your own free Copernicus Data Space account</td><td>Recent, dated imagery at 10 m — what the ground looked like within the last few days or weeks, with the pass date on screen. Needs an instance ID (below)</td></tr>
           </tbody>
         </table>
+      </div>
+      <h3>Sentinel-2 — recent, dated imagery</h3>
+      <p>
+        The other imagery basemaps are the best available picture, which may be years old. Sentinel-2
+        is ESA's Copernicus constellation: a new pass over any point every 2–5 days, 10 m per pixel,
+        every scene dated, free to use including commercially with attribution. PED shows the
+        <b>most recent pass in a window that is under a cloud limit</b>, and the corner chip states
+        which pass you are looking at and how cloudy it was — so "the track was open on 25 Aug" is a
+        statement you can make from the map.
+      </p>
+      <ol>
+        <li>Create a free account at <span class="mono">dataspace.copernicus.eu</span>.</li>
+        <li>Open the Sentinel Hub dashboard → <span class="ui">Configuration Utility</span>. Use the ready-made configuration or create one with a Sentinel-2 L2A true-colour layer; the layer's ID is normally <span class="mono">TRUE-COLOR</span>.</li>
+        <li>Copy the configuration's <b>Instance ID</b> and paste it into the field under the basemap buttons (press <span class="ui">Sentinel-2</span> once to reveal it). It is kept in that browser only and never written into a project file.</li>
+        <li>Set <span class="ui">Up to</span> (default today), the <span class="ui">Window</span> (default 20 days) and the <span class="ui">Cloud</span> limit (default 20%). The chip says which pass resulted; if it says no pass qualifies, widen the window or raise the cloud limit.</li>
+      </ol>
+      <div class="note note--watch">
+        <p class="note-l">Quota, zoom and licence</p>
+        <p>
+          The free tier allows about 10,000 tile requests a month. A screenful is roughly a dozen, so
+          that is several hundred views — ample for targeted looks, not for browsing a province. Tiles
+          start at zoom 8: go to the place first on another basemap, then switch. Attribution
+          (<em>Contains modified Copernicus Sentinel data</em>) is shown on the map and must stay on
+          anything you publish from it. The widely used EOX "Sentinel-2 cloudless" mosaic is deliberately
+          <b>not</b> offered: it is a static annual composite under a non-commercial licence.
+        </p>
       </div>
       <div class="note note--watch">
         <p class="note-l">Google hyb</p>
@@ -1061,6 +1088,7 @@
           <thead><tr><th>Feature</th><th>Talks to</th><th>Sends</th></tr></thead>
           <tbody>
             <tr><td>Basemap tiles</td><td>Whichever provider you picked</td><td>The map area you are looking at</td></tr>
+            <tr><td>Sentinel-2</td><td class="mono">sh.dataspace.copernicus.eu</td><td>The map area, the date window, your instance ID, and one small catalogue query per pan for the date chip</td></tr>
             <tr><td><span class="ui">Snap to roads</span></td><td class="mono">router.project-osrm.org</td><td>The stops of that route</td></tr>
             <tr><td>Imagery capture date</td><td>Esri metadata service</td><td>The point or view you asked about</td></tr>
             <tr><td>Hillshade relief</td><td>Esri tiles</td><td>The map area you are looking at</td></tr>
@@ -1070,7 +1098,7 @@
         </table>
       </div>
       <p>
-        A Mapbox token you type is kept in that browser only and never written into a project file,
+        A Mapbox token or Copernicus instance ID you type is kept in that browser only and never written into a project file,
         so a <code>.json</code> you send to a colleague carries no credentials. Work with an offline
         basemap and snapping unticked and the tool makes no network requests at all.
       </p>
@@ -1164,6 +1192,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.17</td><td class="num">1 Sep 2026</td><td>Sentinel-2 basemap — ESA Copernicus imagery at 10 m through your own free Copernicus Data Space instance: most recent pass in a chosen window under a cloud limit, with the exact pass date and cloud cover shown on the corner chip. Esri place names and roads over it, as Sat hybrid does. Instance ID kept in the browser only</td></tr>
             <tr><td class="mono">1.16</td><td class="num">1 Sep 2026</td><td>Full audit pass. <strong>Wrong-position bugs fixed:</strong> a date-time group such as “12 Sep 2026 1230” was read as an MGRS grid and plotted on another continent; a date like 31.08.2026 could be read from its second dot as a decimal pair; the coordinate box on “decimal” plotted 12.0, 20.0 when given DMS; a CSV of DMS cells imported as whole degrees. <strong>Data safety:</strong> loading a bad or foreign project file no longer empties the map first — it asks before replacing live work and puts the previous project back if the load fails; browser autosave now says so when it has stopped working; undo and moves into a hidden layer un-hide it. <strong>Also:</strong> Air Nav IDs can no longer be duplicated by undo; “exported” is only shown once the file has gone; team icons round-trip through TAK; MultiPolygon/MultiPoint GeoJSON imports; unclosed KML/GeoJSON rings keep their last vertex; KML coordinates with spaces after commas; GPX “no fix” 0,0 points dropped; several naming fixes for pasted text; package stamps carry seconds</td></tr>
             <tr><td class="mono">1.15</td><td class="num">31 Aug 2026</td><td>Bulk paste reads DMS however the marks are typed — two apostrophes for seconds, º for degrees, pipe or slash between lat and lon, hemisphere letter first; minutes or seconds of 60+ rejected</td></tr>
             <tr><td class="mono">1.14</td><td class="num">30 Aug 2026</td><td>Maintenance pass over everything added this week. <strong>Fixed:</strong> exporting a large set of similarly named points could lock the tool up; a marker's popup could keep showing its old symbol after a bulk change; notes, names containing “·” and layer names containing an em dash could be mangled by a TAK round trip; an attachment could attach itself to the wrong marker; dropping several files at once could silently lose one. <strong>Faster:</strong> adding points no longer slows down as the project grows — a 300-point import is about five times quicker</td></tr>
@@ -1187,7 +1216,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.16, 1 September 2026. Kept alongside
+        PED Field Manual · covers version 1.17, 1 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
