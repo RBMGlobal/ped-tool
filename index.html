@@ -1301,19 +1301,31 @@ let PROJ = 'P' + Math.random().toString(36).slice(2, 8).toUpperCase();
 const AUTOKEY = 'ped.autosave.v1';
 const AUTOKEY_LEGACY = 'opipb.autosave.v1';     // pre-rename sessions migrate forward
 const AUTOKEY_LEGACY2 = 'riskmap.autosave.v3';  // and the original Risk map ones
-let _autoT = null, _autoArmed = false, _liteWarned = false;   // armed once real content exists, so an untouched fresh page never overwrites a previous session's autosave
+let _autoT = null, _autoArmed = false, _liteWarned = false, _autoDeadWarned = false;   // armed once real content exists, so an untouched fresh page never overwrites a previous session's autosave
 function scheduleAutosave(){
   clearTimeout(_autoT);
   _autoT = setTimeout(() => {
     try {
       if (allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length) _autoArmed = true;
       if (!_autoArmed) return;
-      try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); }
-      catch(qe){
-        // quota — retry without attachments / imagery so the geometry at least survives
-        localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject({ files:false })));
-        if (!_liteWarned){ _liteWarned = true; toast('Attachments/imagery are too big for browser autosave — points, routes and areas are saved, but use Save (.json) to keep the files.', 8000); }
+      let ok = false;
+      // once the full save has failed on quota, do not re-stringify every attachment on every pan — go straight to lite
+      if (!_liteWarned){ try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); ok = true; } catch(qe){} }
+      if (!ok){
+        try {
+          // quota — retry without attachments / imagery so the geometry at least survives
+          localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject({ files:false })));
+          ok = true;
+          if (!_liteWarned){ _liteWarned = true; toast('Attachments/imagery are too big for browser autosave — points, routes and areas are saved, but use Save (.json) to keep the files.', 8000); }
+        } catch(e3){}
       }
+      if (!ok){
+        // storage disabled, or even the geometry is over quota — silence here would mean the user
+        // finds out on the next power cut. Say it once.
+        if (!_autoDeadWarned){ _autoDeadWarned = true; toast('Browser autosave is NOT working on this device — use Save (.json) regularly.', 12000); }
+        return;
+      }
+      _autoDeadWarned = false;
       try { localStorage.removeItem(AUTOKEY_LEGACY); localStorage.removeItem(AUTOKEY_LEGACY2); } catch(e2){}
     } catch(e){}
   }, 800);
@@ -1373,8 +1385,10 @@ function makeLayer(name, defAff='hostile', defRole, key){
 }
 makeLayer('Layer 1');
 
-function affKeyOf(pt, ly){ return pt.affKey || (ly && ly.defAff) || "hostile"; }
-function roleKeyOf(pt, ly){ return pt.roleKey || (ly && ly.defRole) || "generic"; }
+// A key that no longer resolves — a project file from another build, or a team icon removed after a
+// point using it was deleted and then undone — falls back rather than taking every export down with it.
+function affKeyOf(pt, ly){ const k = pt.affKey || (ly && ly.defAff); return AFF[k] ? k : "hostile"; }
+function roleKeyOf(pt, ly){ const k = pt.roleKey || (ly && ly.defRole); return ROLES[k] ? k : "generic"; }
 function cotOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)]; return r.fixed ? r.fixed : r.build(AFF[affKeyOf(pt,ly)].L); }
 function dotColorOf(pt, ly){ return pt.dotColor || (ly && ly.defDotColor) || ROLES[roleKeyOf(pt,ly)].color || "#FF5252"; }
 function colorOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)]; if (r.dot) return dotColorOf(pt,ly); if (r.custom) return r.color; return r.noAff ? "#20232a" : AFF[affKeyOf(pt,ly)].color; }
@@ -1527,7 +1541,12 @@ function wirePopup(popup, pt, ly){
     toast(`${pt.name}: ${labelOf(pt,ly)} — ${cotOf(pt,ly)}`);
   };
   const dc = el.querySelector('.dotcol');
-  if (dc) dc.oninput = () => { pt.dotColor = dc.value; setPointType(pt.uid, {}); const cat = el.querySelector('.cat'); if(cat) cat.style.color = dc.value; };
+  if (dc){
+    // update the marker live, but only rebuild the popup on 'change' — rebuilding it on every
+    // input tick removed the picker from the DOM mid-drag, so desktop browsers closed it
+    dc.oninput  = () => { pt.dotColor = dc.value; const r = registry[pt.uid]; if (r) r.marker.setIcon(iconFor(r.pt, r.ly)); const cat = el.querySelector('.cat'); if (cat) cat.style.color = dc.value; refreshSelUISoon(); scheduleAutosave(); };
+    dc.onchange = () => { setPointType(pt.uid, {}); };
+  }
   const lsel = el.querySelector('.lysel');
   if (lsel) lsel.onchange = async () => {
     const r0 = rec(pt.uid); if (!r0) return;
@@ -1632,7 +1651,8 @@ function mkMarker(pt, ly0){
   m.bindTooltip(esc(`${pt.id ? pt.id+' · ' : ''}${pt.name}`), { direction:'top', offset:[0,-8] });
   m.on('popupopen', e => { const r = registry[pt.uid]; wirePopup(e.popup, pt, r ? r.ly : ly0); });
   m.on('dragend', () => {
-    const ll = m.getLatLng();
+    const ll = m.getLatLng().wrap();
+    m.setLatLng(ll);
     pt.lat = +ll.lat.toFixed(6); pt.lon = +ll.lng.toFixed(6); pt.dms = toDMSstr(pt.lat, pt.lon);
     try { m.dragging.disable(); } catch(e){}
     toast(`“${pt.name}” moved to ${pt.lat}, ${pt.lon}.`);
@@ -1643,7 +1663,7 @@ function mkMarker(pt, ly0){
 function initLayerRuntime(ly){
   const g = L.layerGroup();
   DATA[ly.key].forEach((pt, i) => {
-    pt.uid = pt.uid || `${ly.key}.${pt.id || i}`;
+    pt.uid = pt.uid || `${ly.key}.p${++addedSeq}`;   // never from the free-text id — "OP 3/2" would nest zip folders and collide in the registry
     const m = mkMarker(pt, ly);
     g.addLayer(m);
     registry[pt.uid] = { pt, ly, marker: m, group: g };
@@ -1697,6 +1717,7 @@ function snapPoint(uid){
 function undoDelete(){
   const batch = undoStack.pop();
   if (!batch) { toast('Nothing to undo.'); return; }
+  _anpTaken = null;   // a restored point brings its Air Nav id back with it
   let n = 0;
   batch.forEach(({pt, lyKey, lyName, lyDef}) => {
     let ly = LYBY[lyKey];
@@ -1711,6 +1732,7 @@ function undoDelete(){
     groups[ly.key].addLayer(m);
     registry[pt.uid] = { pt, ly, marker: m, group: groups[ly.key] };
     allMarkers.push(registry[pt.uid]);
+    if (!map.hasLayer(groups[ly.key])){ map.addLayer(groups[ly.key]); const cb = document.getElementById('cb-'+ly.key); if (cb) cb.checked = true; }   // "Restored 3 points" into a hidden layer restores nothing anyone can see
     updateCount(ly); n++;
   });
   refreshSelUI(); scheduleAutosave();
@@ -1734,7 +1756,7 @@ function buildLayerRow(ly){
   const row = document.createElement('div'); row.className = 'layer-row';
   row.innerHTML = `<input type="checkbox" checked id="cb-${ly.key}"><span class="sw" id="sw-${ly.key}">${iconSVG({}, ly, 12)}</span><span class="lbl"><input class="lname" value="${esc(ly.name)}" title="Click to rename this layer" spellcheck="false"></span><span class="count" id="cnt-${ly.key}">${DATA[ly.key].length || ''}</span><button class="lydel" title="Delete this layer and its points">✕</button>`;
   rowsEl.appendChild(row);
-  row.querySelector('input[type=checkbox]').addEventListener('change', e => { e.target.checked ? map.addLayer(groups[ly.key]) : map.removeLayer(groups[ly.key]); scheduleAutosave(); });
+  row.querySelector('input[type=checkbox]').addEventListener('change', e => { e.target.checked ? map.addLayer(groups[ly.key]) : map.removeLayer(groups[ly.key]); refreshSelUI(); scheduleAutosave(); });   // Leaflet rebuilds marker DOM on re-add, taking the selection halo with it
   const nameEl = row.querySelector('.lname');
   nameEl.addEventListener('input', () => { ly.name = nameEl.value.trim() || ('Layer ' + ly.key.slice(2)); refreshLayerSelect(); scheduleAutosave(); });
   nameEl.addEventListener('keydown', e => { if (e.key === 'Enter') nameEl.blur(); });
@@ -1893,7 +1915,7 @@ async function handleTiff(file){
   const url = cv.toDataURL('image/png');
   const id = createOverlay({ kind:'tiff', name:file.name, url, bounds:[[latMin,lonMin],[latMax,lonMax]], meta:`${w}×${h}px · EPSG:${epsg} · ${spp} band${spp>1?'s':''}` });
   map.fitBounds(overlays[id].bounds.pad(0.05));
-  toast('Overlaid '+file.name+' — use the slider to adjust transparency.');
+  toast('Overlaid '+file.name+(/\+proj=utm/.test(def||'') ? ' — placed approximately: a UTM image is stretched into its lat/lon box, so corners can sit tens of metres off. Use Position, or a WGS84 export, where it matters.' : ' — use the slider to adjust transparency.'), /\+proj=utm/.test(def||'') ? 9000 : 3200);
 }
 // unified overlay creator — GeoTIFF renders ('tiff') and hand-positioned images ('img')
 let imgSeq = 0;   // persistent uid counter, so re-exported imagery packages UPDATE in TAK instead of duplicating
@@ -2010,16 +2032,14 @@ function ovKmzName(ov){ return slug(String(ov.name).replace(/\.\w+$/,'')) + '.km
 async function exportOverlayKMZ(id){
   const ov = overlays[id]; if (!ov) return;
   const blob = await buildOverlayKMZBlob(ov);
-  download(blob, slug(ov.name.replace(/\.tiff?$/i,'')) + '_GRG.kmz');
-  toast('KMZ ground overlay exported — for Google Earth, or manual GRG import into ATAK/WinTAK.');
+  download(blob, slug(ov.name.replace(/\.tiff?$/i,'')) + '_GRG.kmz', { done: 'KMZ ground overlay exported — for Google Earth, or manual GRG import into ATAK/WinTAK.' });
 }
 async function exportOverlayPkg(id){
   const ov = overlays[id]; if (!ov) return;
   const pkgUid = 'PED-IMG-' + slug(ov.name.replace(/\.\w+$/,'')) + '-' + fdate();
   const blob = await buildPkg([{ folder: ov.uid, uid: euid(ov.uid), blobs: [{ name: ovKmzName(ov), blob: await buildOverlayKMZBlob(ov), label: ov.name }] }],
     pkgUid, `${ov.name} (imagery)`);
-  download(blob, pkgUid + '.zip');
-  toast(`Imagery “${ov.name}” exported as a TAK data package (${(blob.size/1048576).toFixed(1)} MB) — imports like your other packages; shows under GRG/overlays.`);
+  download(blob, pkgUid + '.zip', { done: `Imagery “${ov.name}” exported as a TAK data package (${(blob.size/1048576).toFixed(1)} MB) — imports like your other packages; shows under GRG/overlays.` });
 }
 async function exportAllImageryPkg(){
   const ovs = Object.values(overlays);
@@ -2028,8 +2048,7 @@ async function exportAllImageryPkg(){
   for (const ov of ovs) items.push({ folder: ov.uid, uid: euid(ov.uid), blobs: [{ name: ovKmzName(ov), blob: await buildOverlayKMZBlob(ov), label: ov.name }] });
   const pkgUid = 'PED-IMAGERY-' + fdate();
   const blob = await buildPkg(items, pkgUid, `PED — imagery (${ovs.length} overlay${ovs.length===1?'':'s'})`);
-  download(blob, pkgUid + '.zip');
-  toast(`${ovs.length} overlay${ovs.length===1?'':'s'} exported in one TAK data package (${(blob.size/1048576).toFixed(1)} MB).`);
+  download(blob, pkgUid + '.zip', { done: `${ovs.length} overlay${ovs.length===1?'':'s'} exported in one TAK data package (${(blob.size/1048576).toFixed(1)} MB).` });
 }
 document.getElementById('expImgPkgBtn').addEventListener('click', exportAllImageryPkg);
 document.getElementById('addTiffBtn').addEventListener('click', ()=> document.getElementById('tiffInput').click());
@@ -2041,7 +2060,7 @@ mapEl0.addEventListener('drop', e => { dh.classList.remove('on'); const fs=[...(
 /* one import front door: GeoTIFF imagery, project .json, GeoJSON, CSV */
 let _importChain = Promise.resolve();
 function importFilesInTurn(files){
-  [...files].forEach(f => { _importChain = _importChain.then(() => handleImportFile(f)).catch(() => {}); });
+  [...files].forEach(f => { _importChain = _importChain.then(() => handleImportFile(f)).catch(err => { console.error(err); toast(`${f.name}: import failed — ${(err && err.message) || err}`); }); });
   return _importChain;
 }
 async function handleImportFile(file){
@@ -2062,8 +2081,8 @@ async function handleImportFile(file){
   if (/\.txt$/.test(name)) return importScannedText(text, file.name);
   try {
     const obj = JSON.parse(text);
-    if (obj && (obj.app === 'ped' || obj.app === 'opipb' || obj.app === 'riskmap')) { loadProject(obj); return; }
-    if (obj && (obj.type === 'FeatureCollection' || obj.type === 'Feature')) { importGeoJSON(obj, file.name); return; }
+    if (obj && (obj.app === 'ped' || obj.app === 'opipb' || obj.app === 'riskmap')) { loadProjectChecked(obj, file.name); return; }
+    if (obj && (obj.type === 'FeatureCollection' || obj.type === 'Feature' || /^(?:Multi)?(?:Point|LineString|Polygon)$|^GeometryCollection$/.test(obj.type || ''))) { importGeoJSON(obj.type === 'FeatureCollection' || obj.type === 'Feature' ? obj : { type:'Feature', geometry: obj, properties:{} }, file.name); return; }
   } catch(e){}
   toast(file.name + ': not a recognised file — trying a coordinate scan of its text…');
   importScannedText(text, file.name);
@@ -2088,7 +2107,10 @@ function byLocal(root, name){
 }
 function xmlFirstText(el, tag){ const t = byLocal(el, tag)[0]; return t ? t.textContent : ''; }
 function parseKmlCoords(str){
-  return String(str||'').trim().split(/\s+/).map(s => { const p = s.split(','); return [parseFloat(p[1]), parseFloat(p[0])]; })
+  // "lon,lat,alt lon,lat,alt" by the book — but some writers put a space after each comma, which
+  // a whitespace split turns into three separate half-tuples and no coordinates at all
+  const tuples = String(str||'').match(/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\s*,\s*-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)?/g) || [];
+  return tuples.map(s => { const p = s.split(/\s*,\s*/); return [parseFloat(p[1]), parseFloat(p[0])]; })
     .filter(c => isFinite(c[0]) && isFinite(c[1]) && Math.abs(c[0]) <= 90 && Math.abs(c[1]) <= 180);
 }
 function parseXml(text, fname, kind){
@@ -2131,7 +2153,7 @@ async function importKML(text, fname){
       const outer = byLocal(pg, 'outerBoundaryIs')[0] || pg;
       const ring = parseKmlCoords(xmlFirstText(outer, 'coordinates'));
       if (ring.length >= 4){
-        ring.pop();   // KML rings repeat the first vertex
+        if (ring[0][0] === ring[ring.length-1][0] && ring[0][1] === ring[ring.length-1][1]) ring.pop();   // a closed ring repeats its first vertex; one that does not must keep its last
         createShape({ kind:'poly', latlngs: ring.map(c => ({ lat:+c[0].toFixed(6), lon:+c[1].toFixed(6) })), name: nm || 'Area', notes: desc.slice(0,500), color:'#EE2222' });
         nPolys++;
       }
@@ -2168,7 +2190,8 @@ async function importGPX(text, fname){
     if (rec2){ nPts++; const d = (xmlFirstText(w, 'desc') || '').trim(); if (d) rec2.pt.notes = d.slice(0, 500); }
   });
   const trkOf = (tag, ptTag, fallback) => byLocal(doc, tag).forEach(t => {
-    const path = byLocal(t, ptTag).map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))]);
+    const path = byLocal(t, ptTag).map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))])
+      .filter(c => isFinite(c[0]) && isFinite(c[1]) && Math.abs(c[0]) <= 90 && Math.abs(c[1]) <= 180 && !(c[0] === 0 && c[1] === 0));   // phone loggers write 0,0 for "no fix" — a spike to the Gulf of Guinea
     if (addImportedRoute(path, xmlFirstText(t, 'name') || fallback)) nRts++;
   });
   trkOf('trk', 'trkpt', fname.replace(/\.[^.]+$/,''));
@@ -2223,14 +2246,19 @@ function phonesIn(s){
 // closest to the coordinate, and lead with the place rather than "…located around …"
 const NAME_FILLER = /^(?:and|on|at|in|is|was|were|using|located|position(?:ed)?|situated|around|near|nearby|vicinity|of|about|approx(?:imately)?|the|a|an|from|to|by|with|his|her|their|its)\b[\s,;:.\-–—]*/i;
 function tidyName(s){
-  let t = String(s||'').replace(/\b\d{7,}\b/g, ' ').replace(/\s+/g, ' ').trim();   // phone / ID numbers
+  let t = String(s||'')
+    .replace(/\+?\d[\d\s()\-]{8,20}\d/g, m => m.replace(/\D/g,'').length >= 10 ? ' ' : m)   // "0803 456 7890"
+    .replace(/\b\d{7,}\b/g, ' ').replace(/\s+/g, ' ').trim();                                  // phone / ID numbers
   if (t.length > 60){ t = t.slice(t.length - 60).replace(/^\S*\s+/, ''); }         // words nearest the coordinate win
-  for (let i = 0; i < 8; i++){ const n = t.replace(NAME_FILLER, ''); if (!n || n === t) break; t = n; }
+  for (let i = 0; i < 8; i++){ const n = t.replace(NAME_FILLER, ''); if (n === t) break; t = n; if (!t.trim()) return ''; }
   for (let i = 0; i < 4; i++){
     const n = t.replace(/[\s,;:.\-–—]*\b(?:and|on|at|in|is|was|using|located|around|near|vicinity|of|from|to|by|with|the|a|an)\b[\s,;:.\-–—]*$/i, '');
-    if (!n || n === t) break; t = n;
+    if (n === t) break; t = n; if (!t.trim()) return '';
   }
-  return t.replace(/^[\s\-–—:;,.!()\/|\\]+|[\s\-–—:;,.!()\/|\\]+$/g, '').slice(0, 60);
+  t = t.replace(/^[\s\-–—:;,.!()\/|\\]+|[\s\-–—:;,.!()\/|\\]+$/g, '').slice(0, 60);
+  // digits and coordinate punctuation alone is a second, unparsed position — not a name for this one
+  if (/^[\d\s.,;:°º'"″′|\/\\\-]+$/.test(t)) return '';
+  return t;
 }
 // text minus URLs, attachment markers, WhatsApp boilerplate — what's left can name a point
 function cleanName(s, max, fromEnd){
@@ -2288,7 +2316,12 @@ function scanTextForCoords(text){
     while ((m = reGeo.exec(line))) take(m, +m[1], +m[2], 'pin');
     // 1) MGRS (most specific)
     const reM = /\b\d{1,2}\s?[C-HJ-NP-X]\s?[A-HJ-NP-Z]{2}\s?\d{2,5}\s?\d{2,5}\b/gi;
+    // A date-time group is shaped exactly like a grid: "12 Sep 2026 1230" is zone 12, band S,
+    // square EP, easting 2026, northing 1230 — a confident point in Nebraska. Eight month names
+    // happen to be legal band+square letters; a sitrep is full of them, so rule them out.
+    const NOT_GRID = /^\d{1,2}\s?(?:JAN|FEB|MAR|MAY|JUN|JUL|SEP|DEC)\b/i;
     while ((m = reM.exec(line))){
+      if (NOT_GRID.test(m[0])) continue;
       try { const ll = mgrs.toPoint(m[0].replace(/\s+/g,'').toUpperCase()); take(m, ll[1], ll[0], 'MGRS'); } catch(e){}
     }
     // 2) DMS pairs. Field reporting does not use one set of symbols: seconds arrive as a double
@@ -2298,7 +2331,7 @@ function scanTextForCoords(text){
     // Build the pattern from named pieces rather than one unreadable literal, and accept the lot.
     const DEGMK = "[°º˚∘]";                                   // ° º ˚ ∘
     const MINMK = "['’‘´`′]";                                 // ' ’ ‘ ´ ` ′
-    const SECMK = "(?:''|’’|´´|``|′′|[\"”“″])"; // '' ’’ ´´ `` ′′ " ” “ ″
+    const SECMK = "(?:''|’’|´´|``|′′|[\"”“″'’])"; // '' ’’ ´´ `` ′′ " ” “ ″ — or a lone ' once the minutes are done
     const DMSNUM = `(\\d{1,3})\\s*${DEGMK}\\s*(\\d{1,2}(?:\\.\\d+)?)\\s*${MINMK}?\\s*(\\d{1,2}(?:\\.\\d+)?)?\\s*${SECMK}?`;
     const LLSEP  = "[,;|/\\\\\\s]{1,8}";
     const dmsVal = (d, mn, sc) => (+d) + (+mn)/60 + (+(sc||0))/3600;
@@ -2320,6 +2353,7 @@ function scanTextForCoords(text){
     }
     const reD2 = /\b(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([NS])[,;|/\\\s]{1,8}(\d{1,3})\s+(\d{1,2})\s+(\d{1,2}(?:\.\d+)?)\s?([EW])\b/gi;
     while ((m = reD2.exec(line))){
+      if (!dmsOK(m[2], m[3]) || !dmsOK(m[6], m[7])) continue;
       let lat = dmsVal(m[1], m[2], m[3]); if (/s/i.test(m[4])) lat = -lat;
       let lon = dmsVal(m[5], m[6], m[7]); if (/w/i.test(m[8])) lon = -lon;
       take(m, lat, lon, 'DMS');
@@ -2328,13 +2362,20 @@ function scanTextForCoords(text){
     const reK = /lat[a-z]*\.?\s*[:=]?\s*(-?\d{1,3}\.\d+)\s?[°º]?[\s\S]{0,12}?lo?ng?[a-z]*\.?\s*[:=]?\s*(-?\d{1,3}\.\d+)/gi;
     while ((m = reK.exec(line))) take(m, +m[1], +m[2], 'dec');
     // 4) plain decimal pairs — both numbers need ≥2 decimal places (kills dates, versions, phone numbers)
-    const reP = /(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([NS])?\s*[,;|/\\\s]\s*(-?\d{1,3}\.\d{2,8})\s?[°º]?\s?([EW])?/g;
+    // Either number may carry its own hemisphere letter, before or after it, and a lon-first pair
+    // ("7.6534 E 12.4746 N") is turned round by the letters rather than guessed at.
+    const reP = /([NSEW])?\s?(-?\d{1,3}\.\d{2,8})(?![\d.])\s?[°º]?\s?([NSEW])?\s*[,;|/\\\s]\s*([NSEW])?\s?(-?\d{1,3}\.\d{2,8})(?![\d.])\s?[°º]?\s?([NSEW])?/g;
     while ((m = reP.exec(line))){
-      let a = +m[1], b = +m[3];
-      if (m[2] && /s/i.test(m[2])) a = -Math.abs(a);
-      if (m[4] && /w/i.test(m[4])) b = -Math.abs(b);
+      // "31.08.2026, 12.30" must not be read from its second dot as 8.2026, 12.30 — a match that
+      // begins inside a longer dotted number is a slice of a date or a version, not a coordinate
+      const pre = line[m.index - 1];
+      if (pre && /[\d.]/.test(pre)) continue;
+      const h1 = (m[1] || m[3] || '').toUpperCase(), h2 = (m[4] || m[6] || '').toUpperCase();
+      let a = +m[2], b = +m[5];
+      if (/[SW]/.test(h1)) a = -Math.abs(a);
+      if (/[SW]/.test(h2)) b = -Math.abs(b);
       let lat = a, lon = b, fmt = 'dec';
-      if (m[2] && /[EW]/i.test(m[2]) || Math.abs(a) > 90) { lat = b; lon = a; fmt = 'dec (lon,lat)'; }
+      if (/[EW]/.test(h1) || /[NS]/.test(h2) || (!h1 && !h2 && Math.abs(a) > 90)) { lat = b; lon = a; fmt = 'dec (lon,lat)'; }
       take(m, lat, lon, fmt);
     }
     if (!hits.length) return;
@@ -2348,7 +2389,16 @@ function scanTextForCoords(text){
       before: line.slice(i ? kept[i-1].e : 0, h.s),
       after:  line.slice(h.e, i + 1 < kept.length ? kept[i+1].s : line.length)
     }));
-    const names = kept.map((h, i) => tidyName(cleanName(segs[i].before, 200, true)) || tidyName(cleanName(segs[i].after, 200)));
+    // The words between two coordinates belong to one of them, not both. Decide the message's
+    // habit once from its ends — text before the first coordinate means names come first; text
+    // only after the last means they come second — and apply it throughout, so "A 12.4,7.6 and
+    // Zaria 11.0,7.7" does not produce two points called Zaria.
+    const nb = i => tidyName(cleanName(segs[i].before, 200, true));
+    const na = i => tidyName(cleanName(segs[i].after, 200));
+    const last = kept.length - 1;
+    const namesFirst = !!nb(0) || !na(last);
+    const names = kept.map((h, i) => namesFirst ? (nb(i) || (i === last ? na(i) : ''))
+                                                 : (na(i) || (i === 0 ? nb(i) : '')));
     // a shared pin carries no words of its own — borrow the message either side from the same person
     if (isWa && msg.sender && !names.some(Boolean)){
       let borrowed = '';
@@ -2502,6 +2552,10 @@ function readCotType(type, det){
   const iconPath = det.usericon || '';
   const spot = /SPOTMAP\/b-m-p-s-m\/(-?\d+)/.exec(iconPath);
   if (t === 'b-m-p-s-m' || spot) return dotRoleFor(argbToHex(spot ? spot[1] : det.argb));
+  if (iconPath){                                                      // one of this project's own team icons, round-tripping
+    const ci = Object.keys(ROLES).find(k => ROLES[k].custom && ROLES[k].path && ROLES[k].path === iconPath);
+    if (ci) return { roleKey: ci };
+  }
   if (COT_TO_ROLE[t]) return { roleKey: COT_TO_ROLE[t] };            // fixed types, e.g. b-m-p-w
   const m = /^a-([a-z])-(.*)$/.exec(t);
   if (m){
@@ -2568,8 +2622,10 @@ function readCotEvent(ev, into){
   // pin is named "<sender> · <time>".
   const cs = String(det.callsign || '').trim();
   const csParts = cs.split(' · ');
-  const ptId = (csParts.length === 2 && csParts[0].trim() && csParts[1].trim()) ? csParts[0].trim() : '';
-  const name = (ptId ? csParts[1].trim() : cs) || 'Point';
+  // an id is short and code-like; a WhatsApp pin's "Musa · 12:30:15" is neither an id nor two names
+  const looksId = csParts.length >= 2 && /^[A-Za-z0-9_\-\/.]{1,12}$/.test(csParts[0].trim()) && csParts.slice(1).join(' · ').trim() && !/^\d{1,2}:\d{2}/.test(csParts[1].trim());
+  const ptId = looksId ? csParts[0].trim() : '';
+  const name = (looksId ? csParts.slice(1).join(' · ').trim() : cs) || 'Point';
   const uid = ev.getAttribute('uid') || '';
 
   if (type === 'b-m-r'){                                              // route: stops + driven line
@@ -2625,7 +2681,7 @@ function tidyRemarks(rem, name){
   if (!rem) return '';
   const s = String(rem).replace(/\r\n/g, '\n');
   const nl = s.lastIndexOf('\n');
-  if (nl >= 0 && /\s—\s/.test(s.slice(nl)) && /\.\s*$/.test(s)) return s.slice(0, nl).trim();
+  if (nl >= 0 && /\s—\s/.test(s.slice(nl)) && /\d{1,3}°\d{2}′[\d.]+″[NS]/.test(s.slice(nl)) && /\.\s*$/.test(s)) return s.slice(0, nl).trim();   // our summary always carries the DMS string; a foreign multi-line remark does not
   // Older packages ran the note and the summary together on one line with " — " between them.
   // A layer name can contain " — " too, so there is no way to tell them apart with certainty —
   // strip only the part that can be proved (" — <name>. <dms>. <label>.") and keep whatever is
@@ -2718,7 +2774,7 @@ async function importTAKZip(zip, names, zipName){
     let uid = uidByEntry[n];
     if (!uid){                                   // no manifest: fall back to the sibling .cot's uid
       const folder = n.slice(0, n.lastIndexOf('/') + 1);
-      const sib = files.find(f => f.name.startsWith(folder));
+      const sib = files.find(f => f.name.slice(0, f.name.lastIndexOf('/') + 1) === folder);   // exact folder — root-level "" matched everything and attached it to the first marker
       if (sib){ const ev = cotEventsIn(sib.text)[0]; uid = ev ? ev.getAttribute('uid') : ''; }
     }
     if (!uid) continue;
@@ -2754,7 +2810,7 @@ async function importZip(file){
       const t = await zip.file(n).async('string'), label = `${file.name} → ${n.split('/').pop()}`;
       if (/\.csv$/i.test(n)) await importCSV(t, label);
       else if (/\.gpx$/i.test(n)) await importGPX(t, label);
-      else { try { const o = JSON.parse(t); if (o && (o.app === 'ped' || o.app === 'opipb' || o.app === 'riskmap')) loadProject(o); else await importGeoJSON(o, label); } catch(err){ toast(label + ': not readable JSON.'); } }
+      else { try { const o = JSON.parse(t); if (o && (o.app === 'ped' || o.app === 'opipb' || o.app === 'riskmap')) loadProjectChecked(o, label); else await importGeoJSON(o, label); } catch(err){ toast(label + ': not readable JSON.'); } }
     }
     return;
   }
@@ -2852,7 +2908,7 @@ function safeFileName(s, ext){
        .replace(/[\\/:*?"<>|]/g, '')                        // and what a file system will not take
        .replace(/\s+/g, ' ').trim()
        .replace(/^\.+/, '').slice(0, 120).trim();
-  if (!n || n === ext) return null;
+  if (!n || n.toLowerCase() === String(ext||'').toLowerCase() || n.toLowerCase() === String(ext||'').replace(/^\./,'').toLowerCase()) return null;
   if (ext && n.toLowerCase().slice(-ext.length) !== ext.toLowerCase()) n += ext;
   return n;
 }
@@ -2889,14 +2945,20 @@ document.getElementById('fnInput').addEventListener('keydown', e => {
 /* opts.ask === false skips the prompt — used by the per-layer export, which asks once for a stem
    and then names every package from it rather than interrupting for each one. */
 async function download(blob, fname, opts = {}){
+  // opts.done is the success message — shown only after the file has gone, so a cancelled
+  // Save-as dialog is not followed by "exported", then contradicted a second later
   if (opts.ask !== false && document.getElementById('askName').checked){
     const ext = (/(\.[a-z0-9]+)$/i.exec(fname) || [, ''])[1];
     const typed = await askFileName(fname);
-    if (typed === null){ toast('Export cancelled — nothing saved.'); return; }
-    fname = safeFileName(typed, ext) || fname;
+    if (typed === null){ toast('Export cancelled — nothing saved.'); return false; }
+    const safe = safeFileName(typed, ext);
+    if (!safe) toast(`“${typed}” leaves nothing usable once characters a file system rejects are removed — saved as ${fname} instead.`, 6000);
+    fname = safe || fname;
   }
   const ext2 = (/(\.[a-z0-9]+)$/i.exec(fname) || [, ''])[1];
-  return rawDownload(blob, safeFileName(fname, ext2) || fname);
+  const sent = await rawDownload(blob, safeFileName(fname, ext2) || fname);
+  if (sent !== false && opts.done) toast(opts.done, opts.doneMs);
+  return sent !== false;
 }
 async function rawDownload(blob, fname){
   const cap = window.Capacitor;
@@ -2909,13 +2971,14 @@ async function rawDownload(blob, fname){
       try {
         await SH.share({ title: fname, files: [uri] });
         toast(`${fname} — share it to ATAK to import it, or save to Files / Drive.`);
-      } catch(cancelled){ toast(`${fname}: share closed — nothing sent.`); }
-      return;
+      } catch(cancelled){ toast(`${fname}: share closed — nothing sent.`); return false; }
+      return true;
     } catch(e){ console.error('native export failed, falling back', e); }
   }
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1500);
+  return true;
 }
-function fdate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; }
+function fdate(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; }
 
 function euid(localUid){ return `PED.${PROJ}.${localUid}`; }
 function cotFor(pt, ly, tm){
@@ -2991,8 +3054,7 @@ async function exportTAK(){
   const pts = selectedPoints(); if(!pts.length) return;
   const pkgUid = 'PED-'+fdate();
   const blob = await buildTakZip(pts, pkgUid, `PED — ${pts.length} points`);
-  download(blob, pkgUid+'.zip');
-  toast(`TAK data package exported — ${pts.length} points. Import via ATAK/WinTAK → Import Manager.`);
+  download(blob, pkgUid+'.zip', { done: `TAK data package exported — ${pts.length} points. Import via ATAK/WinTAK → Import Manager.` });
 }
 async function exportEverything(){
   const tm = stamp(); const items = [];
@@ -3004,8 +3066,7 @@ async function exportEverything(){
   if (!items.length) { toast('Nothing to export yet — add points, routes or areas first.'); return; }
   const pkgUid = 'PED-ALL-'+fdate();
   const blob = await buildPkg(items, pkgUid, `PED — full picture (${items.length} items)`);
-  download(blob, pkgUid+'.zip');
-  toast(`Exported everything — ${items.length} item${items.length===1?'':'s'}${ovs.length ? ` incl. ${ovs.length} imagery overlay${ovs.length===1?'':'s'}` : ''} in one TAK package (${(blob.size/1048576).toFixed(1)} MB).`);
+  download(blob, pkgUid+'.zip', { done: `Exported everything — ${items.length} item${items.length===1?'':'s'}${ovs.length ? ` incl. ${ovs.length} imagery overlay${ovs.length===1?'':'s'}` : ''} in one TAK package (${(blob.size/1048576).toFixed(1)} MB).` });
 }
 function slug(s){ return String(s).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40) || 'layer'; }
 async function exportTAKLayers(){
@@ -3022,7 +3083,7 @@ async function exportTAKLayers(){
     const pkgUid = 'PED-' + slug(ly.name) + '-' + fdate();
     const blob = await buildTakZip(pts, pkgUid, `${ly.name} — ${pts.length} points`);
     // one name for the batch, with the layer appended so the files stay distinguishable
-    const nm = stem ? safeFileName(`${stem} - ${ly.name}`, '.zip') : (pkgUid + '.zip');
+    const nm = (stem && safeFileName(`${stem} - ${ly.name}`, '.zip')) || (pkgUid + '.zip');
     download(blob, nm, { ask: false });
     await new Promise(r => setTimeout(r, 600));
   }
@@ -3075,16 +3136,14 @@ ${folders}
 ${routeFolder}
 ${shapeFolder}
 </Document></kml>`;
-  download(new Blob([kml], {type:'application/vnd.google-earth.kml+xml'}), 'PED_'+fdate()+'.kml');
-  toast(`KML exported — ${pts.length} selected point${pts.length===1?'':'s'}${rts.length?`, ${rts.length} route${rts.length===1?'':'s'}`:''}${shs.length?`, ${shs.length} area${shs.length===1?'':'s'}`:''}.`);
+  download(new Blob([kml], {type:'application/vnd.google-earth.kml+xml'}), 'PED_'+fdate()+'.kml', { done: `KML exported — ${pts.length} selected point${pts.length===1?'':'s'}${rts.length?`, ${rts.length} route${rts.length===1?'':'s'}`:''}${shs.length?`, ${shs.length} area${shs.length===1?'':'s'}`:''}.` });
 }
 function exportCSV(){
   const pts = selectedPoints(); if(!pts.length) return;
   const rows = [['layer','id','name','lat','lon','mgrs','dms','cot_type','affiliation','role','color','notes']];
   pts.forEach(({pt,ly}) => rows.push([ly.name, pt.id||'', pt.name, pt.lat, pt.lon, mgrsOf(pt), pt.dms, cotOf(pt,ly), AFF[affKeyOf(pt,ly)].label, ROLES[roleKeyOf(pt, ly)].label, ROLES[roleKeyOf(pt,ly)].dot ? dotColorOf(pt,ly) : '', pt.notes||'']));
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-  download(new Blob([csv], {type:'text/csv'}), 'PED_'+fdate()+'.csv');
-  toast(`CSV exported — ${pts.length} points. The same file imports straight back in (drop it on the map).`);
+  download(new Blob([csv], {type:'text/csv'}), 'PED_'+fdate()+'.csv', { done: `CSV exported — ${pts.length} points. The same file imports straight back in (drop it on the map).` });
 }
 document.getElementById('selVisibleBtn').addEventListener('click', ()=>{
   const b = map.getBounds();
@@ -3159,13 +3218,21 @@ let _anpTaken = null;                       // ids already handed out; invalidat
 function anpTakenSet(){
   if (_anpTaken) return _anpTaken;
   _anpTaken = new Set();
-  LAYERS.forEach(ly => DATA[ly.key].forEach(q => { if (q.anpId) _anpTaken.add(q.anpId.toUpperCase()); }));
+  // Two points cannot share a permanent id — Air Nav's overwrite-on-import would update the wrong
+  // waypoint. If one has crept in (a point deleted, its name reused, then the deletion undone), the
+  // later point gives its id up and is reissued on the next export.
+  LAYERS.forEach(ly => DATA[ly.key].forEach(q => {
+    if (!q.anpId) return;
+    const k = q.anpId.toUpperCase();
+    if (_anpTaken.has(k)){ delete q.anpId; return; }
+    _anpTaken.add(k);
+  }));
   return _anpTaken;
 }
 function anpIdFor(pt){
+  const taken = anpTakenSet();   // first — building the set is also where a duplicate id gets revoked
   if (pt.anpId) return pt.anpId;
-  const taken = anpTakenSet();
-  const base = anpText(pt.id || pt.name, 10).replace(/\s+/g, '') || 'WPT';
+  const base = anpText(pt.id || pt.name, 10).replace(/[^A-Za-z0-9\-_.]/g, '') || 'WPT';   // only what survives the deep link's URL field too
   let id = base, n = 2;
   // The number has to FIT inside the 12-character limit, so the stem gives ground as it grows.
   // Truncating the whole thing instead meant "CHECKPOINT" + 100 came back as "CHECKPOINT10" —
@@ -3244,8 +3311,7 @@ async function exportGPX(){
     x += `    </trkseg>\n  </trk>\n`;
   });
   x += `</gpx>\n`;
-  download(new Blob([x], { type: 'application/gpx+xml' }), 'PED_' + fdate() + '.gpx');
-  toast(`GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : (selection.size ? ' only (routes left out — that\u2019s your selection)' : '')}${src ? ` · elevations: ${src}` : ''}. On the device: Share the file to Air Navigation Pro.`, 7000);
+  download(new Blob([x], { type: 'application/gpx+xml' }), 'PED_' + fdate() + '.gpx', { done: `GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : (selection.size ? ' only (routes left out — that\u2019s your selection)' : '')}${src ? ` · elevations: ${src}` : ''}. On the device: Share the file to Air Navigation Pro.`, doneMs: 7000 });
 }
 async function exportANPCsv(){
   const pts = anavPointsForExport();
@@ -3264,8 +3330,7 @@ async function exportANPCsv(){
   });
   const csv = [head].concat(rows)
     .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-  download(new Blob([csv], { type: 'text/csv' }), 'PED_AirNav_' + fdate() + '.csv');
-  toast(`Air Navigation CSV exported — ${pts.length} waypoint${pts.length===1?'':'s'}, layers kept as tags${src ? `, elevations from ${src}` : ', elevation 0'}. Import it in Air Navigation Manager.`, 7000);
+  download(new Blob([csv], { type: 'text/csv' }), 'PED_AirNav_' + fdate() + '.csv', { done: `Air Navigation CSV exported — ${pts.length} waypoint${pts.length===1?'':'s'}, layers kept as tags${src ? `, elevations from ${src}` : ', elevation 0'}. Import it in Air Navigation Manager.`, doneMs: 7000 });
 }
 document.getElementById('expGpxBtn').addEventListener('click', exportGPX);
 document.getElementById('expAnpBtn').addEventListener('click', exportANPCsv);
@@ -3362,7 +3427,7 @@ function bulkApplyType(val, dotColor){
     else { r.pt.roleKey = key; if (ROLES[key].dot) r.pt.dotColor = dotColor || r.pt.dotColor || ROLES[key].color; }
     r.marker.setIcon(iconFor(r.pt, r.ly));
   });
-  refreshSelUI(); scheduleAutosave();
+  openPopupsRefresh(); refreshSelUI(); scheduleAutosave();
   toast(`Updated ${pts.length} selected point${pts.length===1?'':'s'}.`);
 }
 bulkTypeEl.addEventListener('change', ()=>{
@@ -3385,7 +3450,9 @@ function movePointToLayer(uid, key){
   DATA[ly2.key].push(r.pt);
   groups[ly2.key].addLayer(r.marker);
   r.marker.setIcon(iconFor(r.pt, ly2));
+  if (!map.hasLayer(groups[ly2.key])){ map.addLayer(groups[ly2.key]); const cb = document.getElementById('cb-'+ly2.key); if (cb) cb.checked = true; }   // moved into a hidden layer is not moved anywhere the user can see
   updateCount(ly2);
+  refreshSelUISoon();
   return true;
 }
 function bulkMoveLayer(key){
@@ -3472,6 +3539,14 @@ function toDMSstr(lat, lon){
 }
 function parseCoord(fmt, raw){
   const s = (raw||'').trim(); if(!s) return { err:'Enter a coordinate.' };
+  // The dropdown is a hint, not a promise. Left on "decimal" and fed 12°20′42.8″N 7°35′56.7″E,
+  // the decimal reader used to harvest every number it saw and plot 12.0, 20.0 with a success
+  // toast — a confidently wrong point. Let the text itself decide.
+  const flat = s.replace(/\s+/g, '');
+  const nNums = (s.match(/\d+(?:\.\d+)?/g) || []).length;
+  if (/^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}\d{2,10}$/i.test(flat)) fmt = 'mgrs';
+  else if (/[°º˚′″]/.test(s) || nNums >= 4) fmt = 'dms';
+  else if (nNums === 2 && !/[°º˚′″'"]/.test(s)) fmt = 'dec';
   try {
     if (fmt === 'mgrs') {
       const ll = mgrs.toPoint(s.replace(/\s+/g,'').toUpperCase()); // [lon,lat]
@@ -3481,7 +3556,9 @@ function parseCoord(fmt, raw){
       // Fold every way the marks get typed down to ° ' " before reading it. Two apostrophes in
       // a row are seconds, not two minute marks — phone keyboards make that the easy key and it
       // turns up in a lot of pasted reporting.
-      const t0 = s.replace(/[’‘´`′]/g, "'").replace(/[”“″]/g, '"').replace(/''/g, '"').replace(/[º˚∘]/g, '°');
+      let t0 = s.replace(/[’‘´`′]/g, "'").replace(/[”“″]/g, '"').replace(/''/g, '"').replace(/[º˚∘]/g, '°');
+      // "N 12 20.5 E 7 35.2" — a hemisphere letter written first moves to the end of its own number
+      if (/^[NSEW]\s*\d/i.test(t0)) t0 = t0.replace(/([NSEW])\s*([\d][^NSEW]*?)\s*(?=[NSEW]|$)/gi, '$2 $1 ');
       const ONE = /(\d{1,3})\s*[°\s]\s*(\d{1,2}(?:\.\d+)?)\s*['\s]?\s*(\d{1,2}(?:\.\d+)?)?\s*"?\s*([NSEW])/i;
       const m = t0.match(new RegExp(ONE.source, 'gi'));
       if (!m || m.length < 2) return { err:'Use e.g. 12°20′42.8″N 7°35′56.7″E' };
@@ -3495,14 +3572,16 @@ function parseCoord(fmt, raw){
       const lat = /[NS]/.test(a.hem) ? a.v : b.v, lon = /[EW]/.test(a.hem) ? a.v : b.v;
       return { lat, lon };
     }
-    // decimal: two numbers, optional hemisphere letters
-    const parts = s.match(/-?\d+(?:\.\d+)?\s*[NSEW]?/gi);
-    if (!parts || parts.length < 2) return { err:'Use e.g. 12.3456, 7.6543' };
-    const num = t => { let v = parseFloat(t); if(/[SW]/i.test(t)) v=-Math.abs(v); return { v, hem:(t.match(/[NSEW]/i)||[''])[0].toUpperCase() }; };
+    // decimal: exactly two numbers, each optionally wearing a hemisphere letter on either side
+    const parts = s.match(/[NSEW]?\s*-?\d+(?:\.\d+)?\s*[NSEW]?/gi);
+    if (!parts || parts.length !== 2) return { err:'Use e.g. 12.3456, 7.6543 — two numbers.' };
+    const num = t => { let v = parseFloat(t.replace(/^[NSEW]\s*/i, '')); if(/[SW]/i.test(t)) v=-Math.abs(v); return { v, hem:(t.match(/[NSEW]/i)||[''])[0].toUpperCase() }; };
     const a = num(parts[0]), b = num(parts[1]);
     let lat, lon;
-    if (a.hem && b.hem) { lat = /[NS]/.test(a.hem)?a.v:b.v; lon = /[EW]/.test(a.hem)?a.v:b.v; }
+    if (a.hem && b.hem) { if (/[NS]/.test(a.hem) === /[NS]/.test(b.hem)) return { err:'Needs one N/S value and one E/W value.' }; lat = /[NS]/.test(a.hem)?a.v:b.v; lon = /[EW]/.test(a.hem)?a.v:b.v; }
+    else if (/[EW]/.test(a.hem) || /[NS]/.test(b.hem)) { lat = b.v; lon = a.v; }
     else { lat = a.v; lon = b.v; }
+    if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { err:'Out of range — latitude ±90, longitude ±180.' };
     return { lat, lon };
   } catch(e){ return { err:'Could not parse that coordinate.' }; }
 }
@@ -3560,7 +3639,7 @@ document.getElementById('addBtn').addEventListener('click', ()=>{
 // pick-on-map mode
 let pickMode=false;
 const pickBtn=document.getElementById('pickBtn');
-function setPick(on){ if (on && typeof drawMode!=='undefined' && drawMode) cancelDraw(true); if (on && typeof elevMode!=='undefined' && elevMode) setElev(false); if (on && typeof probeMode!=='undefined' && probeMode) setProbe(false); pickMode=on; pickBtn.classList.toggle('on',on); document.getElementById('map').classList.toggle('map-pick',on); pickBtn.textContent = on?'Click map… (Esc to cancel)':'Pick on map'; }
+function setPick(on){ if (on && typeof boxSelMode!=='undefined' && boxSelMode) setBoxSel(false); if (on && typeof drawMode!=='undefined' && drawMode) cancelDraw(true); if (on && typeof elevMode!=='undefined' && elevMode) setElev(false); if (on && typeof probeMode!=='undefined' && probeMode) setProbe(false); pickMode=on; pickBtn.classList.toggle('on',on); document.getElementById('map').classList.toggle('map-pick',on); pickBtn.textContent = on?'Click map… (Esc to cancel)':'Pick on map'; }
 pickBtn.addEventListener('click', ()=> setPick(!pickMode));
 document.addEventListener('keydown', e=>{ if(e.key==='Escape' && pickMode) setPick(false); });
 map.on('click', e=>{
@@ -3779,7 +3858,7 @@ async function addRouteFromUrl(){
     toast('Couldn’t find at least two coordinate stops in that link.'); return;
   }
   const snap = document.getElementById('routeSnap').checked;
-  const btn = document.getElementById('routeAddBtn'); btn.disabled = true; const label0 = btn.textContent;
+  const btn = document.getElementById('routeAddBtn'); if (btn.disabled) return; btn.disabled = true; const label0 = btn.textContent;
   btn.textContent = snap ? 'Routing…' : 'Adding…';
   if (snap) toast('Snapping to roads…', 8000);
   let segData;
@@ -3838,8 +3917,7 @@ async function exportRouteTAK(uid){
   const rt = routes[uid]; if (!rt) return;
   const pkgUid = 'ROUTE-' + slug(rt.name) + '-' + fdate();
   const blob = await buildPkg([{ folder: rt.uid, uid: euid(rt.uid), xml: routeCot(rt, stamp()) }], pkgUid, `${rt.name} (route)`);
-  download(blob, pkgUid + '.zip');
-  toast(`Route “${rt.name}” exported as a TAK route package (b-m-r).`);
+  download(blob, pkgUid + '.zip', { done: `Route “${rt.name}” exported as a TAK route package (b-m-r).` });
 }
 document.getElementById('routeAddBtn').addEventListener('click', addRouteFromUrl);
 document.getElementById('routeUrl').addEventListener('keydown', e => { if (e.key === 'Enter') addRouteFromUrl(); });
@@ -4021,8 +4099,7 @@ async function exportShapeTAK(uid){
   const sh = shapes[uid]; if (!sh) return;
   const pkgUid = 'AREA-' + slug(sh.name) + '-' + fdate();
   const blob = await buildPkg([{ folder: sh.uid, uid: euid(sh.uid), xml: shapeCot(sh, stamp()) }], pkgUid, `${sh.name} (threat area)`);
-  download(blob, pkgUid + '.zip');
-  toast(`Area “${sh.name}” exported as a TAK drawing shape (${sh.kind==='circ'?'u-d-c-c':'u-d-f'}).`);
+  download(blob, pkgUid + '.zip', { done: `Area “${sh.name}” exported as a TAK drawing shape (${sh.kind==='circ'?'u-d-c-c':'u-d-f'}).` });
 }
 
 /* ---------- team iconset: custom ATAK icons by iconsetpath ---------- */
@@ -4308,6 +4385,7 @@ map.on('mousemove', e => { if (elevMode === 2 && elevTemp) elevTemp.setLatLngs([
 function abIcon(t){ return L.divIcon({ className: '', html: `<div style="width:18px;height:18px;border-radius:4px;background:#2E77D0;color:#fff;border:2px solid #fff;box-shadow:0 0 0 1px rgba(11,11,11,.5);display:flex;align-items:center;justify-content:center;font:700 10px system-ui">${t}</div>`, iconSize: [18,18], iconAnchor: [9,9] }); }
 async function runProfile(path, title, drawLine){
   const rs = resampleLine(path, 90);
+  if (!(rs.total > 5)){ toast('Pick two different points for a profile.'); return; }
   toast('Fetching elevations…', 5000);
   let data;
   try { data = await fetchElevations(rs.pts); }
@@ -4407,7 +4485,25 @@ function clearAll(){
   selection.clear(); undoStack.length = 0;
   refreshSelUI();
 }
+// Dropping a teammate's .json onto the map is an ordinary import gesture — it must not silently
+// replace a morning's work. Ask when there is something to lose.
+function loadProjectChecked(obj, srcName){
+  const busy = allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length;
+  if (busy && !confirm(`Replace the current project with ${srcName || 'this file'}?\n\nEverything on the map now will be cleared (Save it as .json first if unsure).`)) { toast('Load cancelled — nothing changed.'); return; }
+  loadProject(obj);
+}
 function loadProject(obj){
+  // A bad record in the file used to throw after clearAll() had already emptied the map — and the
+  // debounced autosave then overwrote the last good autosave with the half-loaded remains. Take a
+  // snapshot first; if the load fails, put it back.
+  const backup = allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length ? serializeProject() : null;
+  const ok = loadProjectInner(obj);
+  if (ok || !backup) return;
+  clearTimeout(_autoT);
+  try { loadProjectInner(backup, true); toast('Could not load that project file — your previous project has been put back.', 8000); }
+  catch(e2){ console.error(e2); toast('Could not load that project file, and restoring the previous one failed — reload the page and choose Restore.', 12000); }
+}
+function loadProjectInner(obj, isRollback){
   try {
     clearAll();
     if (obj.proj) PROJ = obj.proj;
@@ -4415,12 +4511,12 @@ function loadProject(obj){
     (obj.customIcons || []).forEach(ci => addCustomIcon(ci, true));   // before points, so roleKeys resolve
     if (obj.planSpeed) document.getElementById('planSpeed').value = obj.planSpeed;
     (obj.layers || []).forEach(L0 => {
-      const ly = makeLayer(L0.name, L0.defAff || 'hostile', L0.defRole, L0.key);
+      const ly = makeLayer(L0.name, AFF[L0.defAff] ? L0.defAff : 'hostile', ROLES[L0.defRole] ? L0.defRole : undefined, L0.key);
       if (L0.defDotColor) ly.defDotColor = L0.defDotColor;
       (L0.points || []).forEach(p => {
         if (!isFinite(+p.lat) || !isFinite(+p.lon)) return;
         const pt = { uid: p.uid, id: p.id || '', name: p.name || 'Point', lat: +p.lat, lon: +p.lon,
-          dms: toDMSstr(+p.lat, +p.lon), affKey: p.affKey, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined, anpId: p.anpId || undefined,
+          dms: toDMSstr(+p.lat, +p.lon), affKey: AFF[p.affKey] ? p.affKey : undefined, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined, anpId: p.anpId || undefined,
           atts: (p.atts || []).filter(a => a && a.dataURL) };
         DATA[ly.key].push(pt);
         const m2 = pt.uid && String(pt.uid).match(/\.p(\d+)$/); if (m2) addedSeq = Math.max(addedSeq, +m2[1]);
@@ -4437,7 +4533,7 @@ function loadProject(obj){
       routes[uid] = rt; drawRoute(rt);
     });
     renderRouteList();
-    (obj.shapes || []).forEach(S0 => { if (S0.kind === 'circ' ? S0.center : (S0.latlngs && S0.latlngs.length >= 3)) createShape(S0); });
+    (obj.shapes || []).forEach(S0 => { if (S0.kind === 'circ' ? (S0.center && +S0.radius > 0) : (S0.latlngs && S0.latlngs.length >= 3)) createShape(S0); });
     (obj.overlays || []).forEach(O0 => { if (O0.url && O0.bounds) createOverlay(O0); });
     if (obj.seq){ laySeq = Math.max(laySeq, obj.seq.lay||0); addedSeq = Math.max(addedSeq, obj.seq.added||0); routeSeq = Math.max(routeSeq, obj.seq.route||0); shapeSeq = Math.max(shapeSeq, obj.seq.shape||0); ciSeq = Math.max(ciSeq, obj.seq.ci||0); imgSeq = Math.max(imgSeq, obj.seq.img||0); }
     refreshLayerSelect(); refreshSelUI(); renderRouteList();
@@ -4447,12 +4543,12 @@ function loadProject(obj){
     } else fitAll();
     if (typeof setHillshade === 'function') setHillshade(!!(obj.view && obj.view.hs));
     scheduleAutosave();
-    toast(`Project loaded — ${allMarkers.length} points, ${Object.keys(routes).length} routes, ${Object.keys(shapes).length} areas.`);
-  } catch(err){ console.error(err); toast('Could not load that project file.'); }
+    if (!isRollback) toast(`Project loaded — ${allMarkers.length} points, ${Object.keys(routes).length} routes, ${Object.keys(shapes).length} areas.`);
+    return true;
+  } catch(err){ console.error(err); if (isRollback) throw err; toast('Could not load that project file.'); return false; }
 }
 document.getElementById('saveProjBtn').addEventListener('click', ()=>{
-  download(new Blob([JSON.stringify(serializeProject(), null, 1)], { type:'application/json' }), 'PED_project_' + fdate() + '.json');
-  toast('Project saved as .json — load it here later, or share it so the team exports matching TAK IDs.');
+  download(new Blob([JSON.stringify(serializeProject(), null, 1)], { type:'application/json' }), 'PED_project_' + fdate() + '.json', { done: 'Project saved as .json — load it here later, or share it so the team exports matching TAK IDs.' });
 });
 /* CSV import — flexible headers: lat/lon (or mgrs), name, layer, id, affiliation, role, color, notes */
 function parseCSVtext(text){
@@ -4469,7 +4565,7 @@ function parseCSVtext(text){
   return rows;
 }
 async function importCSV(text, fname){
-  const rows = parseCSVtext(text);
+  const rows = parseCSVtext(String(text || '').replace(/^\ufeff/, ''));   // Excel's "CSV UTF-8" carries a BOM; Blob.text() strips it, JSZip does not
   if (rows.length < 2){ toast(fname + ': no data rows found.'); return; }
   const hdr = rows[0].map(h => h.trim().toLowerCase());
   const col = names => { for (const n of names){ const i = hdr.indexOf(n); if (i >= 0) return i; } return -1; };
@@ -4490,7 +4586,17 @@ async function importCSV(text, fname){
   let added = 0, skipped = 0;
   rows.slice(1).forEach(r => {
     let lat = NaN, lon = NaN;
-    if (iLat >= 0 && iLon >= 0){ lat = parseFloat(r[iLat]); lon = parseFloat(r[iLon]); }
+    // parseFloat("12°20'42\"N") is 12 — a spreadsheet of DMS cells used to import as a column of
+    // whole degrees with a success toast. Only a plain number is a plain number; anything else
+    // goes through the full coordinate reader, and what it cannot read is skipped and counted.
+    const plain = v => /^\s*[-+]?\d+(?:\.\d+)?\s*$/.test(String(v ?? '')) ? parseFloat(v) : NaN;
+    if (iLat >= 0 && iLon >= 0){
+      lat = plain(r[iLat]); lon = plain(r[iLon]);
+      if ((!isFinite(lat) || !isFinite(lon)) && r[iLat] && r[iLon]){
+        const c = parseCoord('dms', String(r[iLat]) + ' ' + String(r[iLon]));
+        if (!c.err){ lat = c.lat; lon = c.lon; }
+      }
+    }
     if ((!isFinite(lat) || !isFinite(lon)) && iMgrs >= 0 && r[iMgrs]){
       try { const ll = mgrs.toPoint(String(r[iMgrs]).replace(/\s+/g,'').toUpperCase()); lon = ll[0]; lat = ll[1]; } catch(e){}
     }
@@ -4518,16 +4624,32 @@ async function importCSV(text, fname){
 async function importGeoJSON(obj, fname){
   const feats = obj.type === 'FeatureCollection' ? (obj.features || []) : [obj];
   let nPts = 0, nLines = 0, nPolys = 0, skipped = 0;
-  const ptFeats = feats.filter(f => f && f.geometry && f.geometry.type === 'Point' && f.geometry.coordinates).length;
+  const ptFeats = feats.reduce((n, f) => { const g = f && f.geometry; if (!g) return n;
+    if (g.type === 'Point' && g.coordinates) return n + 1;
+    if (g.type === 'MultiPoint') return n + (g.coordinates || []).length;
+    if (g.type === 'GeometryCollection') return n + (g.geometries || []).filter(x => x && x.type === 'Point').length;
+    return n; }, 0);
   let lyKey = document.getElementById('addLayer').value, skipPts = false;
   if (ptFeats){
-    const others = feats.some(f => f && f.geometry && f.geometry.type !== 'Point');
+    const others = feats.some(f => f && f.geometry && !/^(?:Multi)?Point$/.test(f.geometry.type));
     const dest = await pickLayerDest({ title:`${fname}: add ${ptFeats} point${ptFeats===1?'':'s'} to which layer?`, suggestName: fname.replace(/\.[^.]+$/,''), cancelLabel: others ? 'Skip the points' : 'Cancel' });
     if (dest) lyKey = dest.key;
     else if (others) skipPts = true;
     else { toast(fname + ': import cancelled.'); return; }
   }
-  feats.forEach(f => {
+  // QGIS writes MultiPolygon by default, and a GeometryCollection is legal — open them up into
+  // the simple kinds below rather than counting them as skipped
+  const explode = g => {
+    if (!g) return [];
+    if (g.type === 'GeometryCollection') return (g.geometries || []).flatMap(explode);
+    if (g.type === 'MultiPoint')      return (g.coordinates || []).map(c => ({ type:'Point', coordinates:c }));
+    if (g.type === 'MultiLineString') return (g.coordinates || []).map(c => ({ type:'LineString', coordinates:c }));
+    if (g.type === 'MultiPolygon')    return (g.coordinates || []).map(c => ({ type:'Polygon', coordinates:c }));
+    return [g];
+  };
+  const flat = [];
+  feats.forEach(f => { const parts = explode(f && f.geometry); if (!parts.length) flat.push(f); else parts.forEach(g => flat.push({ ...f, geometry: g })); });
+  flat.forEach(f => {
     const g = f && f.geometry; if (!g || !g.coordinates){ skipped++; return; }
     const props = f.properties || {};
     const nm = props.name || props.Name || props.title || props.callsign || '';
@@ -4541,7 +4663,8 @@ async function importGeoJSON(obj, fname){
       if (addImportedRoute(g.coordinates.map(c => [+(+c[1]).toFixed(6), +(+c[0]).toFixed(6)]), nm)) nLines++;
     } else if (g.type === 'Polygon' && g.coordinates[0] && g.coordinates[0].length >= 4){
       const ring = g.coordinates[0].map(c => ({ lat: +(+c[1]).toFixed(6), lon: +(+c[0]).toFixed(6) }));
-      ring.pop();  // GeoJSON rings repeat the first point
+      const f0 = ring[0], fl = ring[ring.length-1];
+      if (fl.lat === f0.lat && fl.lon === f0.lon) ring.pop();  // a closed ring repeats its first point; an unclosed one must keep its last
       createShape({ kind:'poly', latlngs: ring, name: nm, notes: String(notes||''), color:'#EE2222' });
       nPolys++;
     } else skipped++;
