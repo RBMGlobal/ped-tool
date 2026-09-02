@@ -1524,8 +1524,12 @@ function setBase(k){
   }
   if (k === 's2'){
     document.getElementById('s2cfg').classList.add('show');
-    if (S2.inst && !bases.s2.layers.length) rebuildS2();
-    if (!bases.s2.layers.length){ toast('Sentinel-2 needs an instance ID — the field under the basemap buttons is empty. Restore the team ID or paste your own (free account at dataspace.copernicus.eu).', 8000); return; }
+    // An empty instance field is never a reason to refuse: the browser can empty it behind our
+    // back (an old session's form value restored into the new page, an extension firing input).
+    // The team ID is the shipped default — put it back and carry on.
+    if (!S2.inst || !S2.inst.trim()){ S2.inst = S2_INST_DEFAULT; document.getElementById('s2Inst').value = S2_INST_DEFAULT; if (typeof saveUI === 'function') saveUI(); }
+    if (!bases.s2.layers.length) rebuildS2();
+    if (!bases.s2.layers.length){ toast('Sentinel-2 needs an instance ID — paste one into the field under the basemap buttons (free account at dataspace.copernicus.eu).', 8000); return; }
     if (map.getZoom() < 8) toast('Sentinel-2 tiles start at zoom 8 — zoom in to the area you want.', 5000);
   }
   bases[curBase].layers.forEach(l => map.removeLayer(l));
@@ -1538,6 +1542,9 @@ function setBase(k){
 }
 Object.keys(bases).forEach(k => document.getElementById('bm-'+k).addEventListener('click', () => setBase(k)));
 document.getElementById('s2Inst').addEventListener('input', e => { S2.inst = e.target.value.trim(); s2Apply(); });
+document.getElementById('s2Inst').addEventListener('change', e => {   // leaving the field empty means "back to the team ID"
+  if (!e.target.value.trim()){ S2.inst = S2_INST_DEFAULT; e.target.value = S2_INST_DEFAULT; s2Apply(); }
+});
 document.getElementById('s2Layer').addEventListener('change', e => { S2.layer = e.target.value.trim() || 'TRUE-COLOR-S2L2A'; e.target.value = S2.layer; s2Apply(); });
 document.getElementById('s2To').addEventListener('change', e => { S2.to = e.target.value; s2Apply(); });
 document.getElementById('s2Days').addEventListener('change', e => { S2.days = +e.target.value; s2Apply(); });
@@ -4820,7 +4827,7 @@ function saveUI(){
     // sec-help defaults closed, everything else open — the saved list wins either way
     document.querySelectorAll('details.sec').forEach(d => { d.open = !(prefs.closed || []).includes(d.id); });
     if (prefs.mb) MB_TOKEN = prefs.mb;
-    if (prefs.s2 && prefs.s2.inst){ S2.inst = String(prefs.s2.inst); S2.layer = prefs.s2.layer || 'TRUE-COLOR-S2L2A'; S2.to = prefs.s2.to || ''; S2.days = +prefs.s2.days || 20; S2.cc = +prefs.s2.cc || 20; }
+    if (prefs.s2 && prefs.s2.inst && String(prefs.s2.inst).trim()){ S2.inst = String(prefs.s2.inst).trim(); S2.layer = prefs.s2.layer || 'TRUE-COLOR-S2L2A'; S2.to = prefs.s2.to || ''; S2.days = +prefs.s2.days || 20; S2.cc = +prefs.s2.cc || 20; }
     if (prefs.ask === false) document.getElementById('askName').checked = false;   // on unless turned off
   }
   document.getElementById('s2Inst').value = S2.inst; document.getElementById('s2Layer').value = S2.layer;
