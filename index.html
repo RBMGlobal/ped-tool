@@ -311,6 +311,8 @@
         <label>Cloud ≤ <select id="s2Cc"><option>10</option><option selected>20</option><option>40</option><option>60</option><option>100</option></select>%</label>
       </div>
       <div class="addhint" style="margin-top:2px">Shows the most recent Sentinel-2 pass in the window that is under the cloud limit; the corner chip names the pass and its cloud cover. A team instance ID ships in this file (tile use counts against that Copernicus account — 30,000 tiles a month; recreate it at dataspace.copernicus.eu → Configuration Utility if needed). Typing here overrides it for this browser; IDs are never saved into shared project files.</div>
+      <button id="s2GrabBtn" style="margin-top:8px">Grab this view → TAK data package</button>
+      <div class="addhint" style="margin-top:2px">Frame the area, press once: the imagery on screen is fetched as one picture at up to 10 m, appears under Imagery named with its pass date, and exports as a TAK data package — imports into ATAK like your other packages, shows under GRG/overlays. Up to ~25 km across grabs at full resolution; wider grabs are coarser and say so.</div>
     </div>
     <input id="search" type="search" placeholder="Find a point by name…" autocomplete="off" style="margin-top:6px">
     <div id="results"></div>
@@ -1550,6 +1552,50 @@ document.getElementById('s2To').addEventListener('change', e => { S2.to = e.targ
 document.getElementById('s2Days').addEventListener('change', e => { S2.days = +e.target.value; s2Apply(); });
 document.getElementById('s2Cc').addEventListener('change', e => { S2.cc = +e.target.value; s2Apply(); });
 document.getElementById('bm-s2').addEventListener('click', () => document.getElementById('s2cfg').classList.add('show'));
+/* One press: the Sentinel-2 imagery on screen becomes a normal imagery overlay — named by its
+   pass date, exact bounds, attribution in the card — and goes straight out through the same
+   overlay→TAK pipeline every GeoTIFF already uses. Nothing new to learn on the ATAK side:
+   it imports like any other package and shows under GRG/overlays. */
+async function grabS2(){
+  const btn = document.getElementById('s2GrabBtn');
+  if (btn.disabled) return;
+  if (!S2.inst || !S2.inst.trim()){ S2.inst = S2_INST_DEFAULT; document.getElementById('s2Inst').value = S2_INST_DEFAULT; }
+  const b = map.getBounds(), c = b.getCenter();
+  const p1 = L.CRS.EPSG3857.project(b.getSouthWest()), p2 = L.CRS.EPSG3857.project(b.getNorthEast());
+  const wMerc = p2.x - p1.x, hMerc = p2.y - p1.y;
+  const groundW = wMerc * Math.cos(c.lat * Math.PI / 180);          // true metres across the view
+  // one pixel per 10 m of ground — Sentinel-2's native resolution — capped so a huge view
+  // still works, just coarser (and the card says so)
+  let W = Math.round(groundW / 10), H = Math.round(W * (hMerc / wMerc));
+  const sc = Math.min(1, 2560 / Math.max(W, H));
+  W = Math.min(2560, Math.max(256, Math.round(W * sc)));
+  H = Math.min(2560, Math.max(256, Math.round(H * sc)));
+  const w = s2Window();
+  const label0 = btn.textContent; btn.disabled = true; btn.textContent = 'Fetching Sentinel-2…';
+  try {
+    const url = `https://sh.dataspace.copernicus.eu/ogc/wms/${encodeURIComponent(S2.inst)}` +
+      `?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=${encodeURIComponent(S2.layer || 'TRUE-COLOR-S2L2A')}` +
+      `&FORMAT=image%2Fjpeg&SRS=EPSG%3A3857&BBOX=${p1.x},${p1.y},${p2.x},${p2.y}` +
+      `&WIDTH=${W}&HEIGHT=${H}&TIME=${w.from}%2F${w.to}&MAXCC=${+S2.cc || 20}&PRIORITY=mostRecent&SHOWLOGO=false`;
+    const r = await fetchT(url, 60000);
+    if (!r.ok) throw new Error('the imagery service answered ' + r.status);
+    const blob = await r.blob();
+    if (!/^image\//.test(blob.type)) throw new Error('the service returned no image — check the layer name in the Sentinel-2 settings');
+    const dataURL = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+    const info = await fetchS2Meta(c.lat, c.lng).catch(() => null);
+    const passDate = (info && info.date) || w.to;
+    const ccTxt = info && isFinite(info.cc) ? ` (${info.cc}% cloud)` : '';
+    const mPerPx = Math.max(10, Math.round(groundW / W));
+    const id = createOverlay({ kind: 's2', name: `S2 ${passDate}${ccTxt}`, url: dataURL, bounds: b,
+      meta: `Sentinel-2 pass ${passDate}${ccTxt} · ${W}×${H}px ≈${mPerPx} m/px · Contains modified Copernicus Sentinel data ${String(passDate).slice(0,4)}` });
+    await exportOverlayPkg(id);
+  } catch(e){
+    console.error(e);
+    toast(`Sentinel-2 grab failed — ${(e && e.message) || e}. The view stays as it was; nothing was exported.`, 8000);
+  }
+  btn.disabled = false; btn.textContent = label0;
+}
+document.getElementById('s2GrabBtn').addEventListener('click', grabS2);
 document.getElementById('mbToken').addEventListener('input', e => {
   MB_TOKEN = e.target.value.trim();
   const active = curBase === 'mbhyb';
@@ -4344,7 +4390,8 @@ async function fetchS2Meta(lat, lng){
       .filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.cc <= (+S2.cc || 20))
       .sort((a, b) => b.date.localeCompare(a.date));
     if (!feats.length) return { dateStr: `no pass under ${S2.cc}% cloud in the ${S2.days} d to ${w.to} — widen the window or raise the cloud limit`, res: 10, s2: true, none: true };
-    return { dateStr: `Sentinel-2 pass ${feats[0].date}${isFinite(feats[0].cc) ? ` · ${Math.round(feats[0].cc)}% cloud` : ''}`, res: 10, s2: true };
+    return { dateStr: `Sentinel-2 pass ${feats[0].date}${isFinite(feats[0].cc) ? ` · ${Math.round(feats[0].cc)}% cloud` : ''}`, res: 10, s2: true,
+             date: feats[0].date, cc: isFinite(feats[0].cc) ? Math.round(feats[0].cc) : undefined };
   } catch(e){ return fallback; }
 }
 async function refreshImgDate(){

@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.19 · 2 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.20 · 5 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.19</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.20</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -442,6 +442,27 @@
         which pass resulted; if it says no pass qualifies, widen the window or raise the cloud
         limit — in the wet season expect to trade cloud for recency.
       </p>
+      <h3>Pushing Sentinel-2 into a TAK data package</h3>
+      <p>
+        <span class="ui">Grab this view → TAK data package</span>, under the Sentinel-2 settings,
+        turns what is on screen into imagery the team carries: one press fetches the current view
+        as a single picture at up to 10 m, drops it under <span class="ui">Imagery</span> — named
+        by its pass date and cloud cover, e.g. <em>S2 2026-08-29 (12% cloud)</em>, with the
+        Copernicus attribution on the card — and exports it as a TAK data package. It imports into
+        ATAK/WinTAK like every other package and shows under GRG/overlays.
+      </p>
+      <ul>
+        <li><b>Frame first.</b> The grab is exactly the map view. Up to about 25 km across comes
+          through at the full 10 m; wider grabs are automatically coarser and the card states the
+          real m/px, so nobody mistakes a province grab for a detailed one.</li>
+        <li><b>Same pass as the screen.</b> The grab uses the same date window and cloud limit as
+          the live layer, so what lands in ATAK is what you were looking at.</li>
+        <li><b>It stays in the project.</b> The grab is a normal imagery overlay afterwards —
+          opacity slider, re-export as KMZ or in the all-imagery package, saved in the
+          <code>.json</code> — so the picture the team acted on is on record with its date.</li>
+        <li><b>Size.</b> A full-resolution grab is typically 1–3 MB in the package — fine over
+          Starlink or a TAK server; think before queuing several on a thin phone link.</li>
+      </ul>
       <div class="note note--watch">
         <p class="note-l">Quota, zoom and licence</p>
         <p>
@@ -1203,6 +1224,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.20</td><td class="num">5 Sep 2026</td><td>Grab this view → TAK data package: one press fetches the on-screen Sentinel-2 imagery at up to 10 m as a single dated picture, adds it under Imagery (pass date, cloud cover and attribution on the card) and exports it as a TAK data package for ATAK — same pipeline as GeoTIFF imagery, so it imports and displays identically</td></tr>
             <tr><td class="mono">1.19</td><td class="num">2 Sep 2026</td><td>Sentinel-2: an emptied instance-ID field heals itself — the browser can clear the field behind the tool's back (an older session's form state restored into the page, or an extension), and that used to block the layer with a message. Pressing Sentinel-2, or leaving the field empty, now restores the team ID and carries on</td></tr>
             <tr><td class="mono">1.18</td><td class="num">1 Sep 2026</td><td>Sentinel-2 works out of the box: a team Copernicus instance ID ships in the tool (30,000 tiles/month, shared), with the field overriding it per browser; default layer corrected to TRUE-COLOR-S2L2A, the atmospherically corrected product the team configuration actually serves</td></tr>
             <tr><td class="mono">1.17</td><td class="num">1 Sep 2026</td><td>Sentinel-2 basemap — ESA Copernicus imagery at 10 m through your own free Copernicus Data Space instance: most recent pass in a chosen window under a cloud limit, with the exact pass date and cloud cover shown on the corner chip. Esri place names and roads over it, as Sat hybrid does. Instance ID kept in the browser only</td></tr>
@@ -1229,7 +1251,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.19, 2 September 2026. Kept alongside
+        PED Field Manual · covers version 1.20, 5 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
