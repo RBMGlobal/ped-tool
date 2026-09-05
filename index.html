@@ -420,6 +420,7 @@
     <button class="toolbtn primary" id="expAllBtn">Export TAK — everything (one package)</button>
     <button class="toolbtn" id="expTakLayersBtn">Export TAK — one package per layer</button>
     <button class="toolbtn" id="expKmlBtn" disabled>Export KML (.kml)</button>
+    <button class="toolbtn" id="expDjiPtsBtn" disabled title="Points-only KML for the M30T's map — import it as an annotation in DJI FlightHub 2 and the pins appear in Pilot 2 on the controller">DJI points (KML)</button>
     <button class="toolbtn" id="expCsvBtn" disabled>Export CSV (.csv)</button>
     <div class="subhead">Air Navigation Pro</div>
     <div class="selbar"><span class="selcount" id="anavCount">0</span><span style="color:var(--muted);font-size:12px">marked for Air Nav — tick “Send to Air Navigation Pro” in a point’s popup</span></div>
@@ -1828,6 +1829,8 @@ function refreshSelUI(){
   ['expTakBtn','expCsvBtn','selDeleteBtn'].forEach(id => { const el=document.getElementById(id); if(el) el.disabled = n===0; });
   const kml = document.getElementById('expKmlBtn');
   if (kml) kml.disabled = n===0 && !Object.keys(routes).length && !Object.keys(shapes).length;
+  const djiPts = document.getElementById('expDjiPtsBtn');
+  if (djiPts) djiPts.disabled = !allMarkers.length;
   allMarkers.forEach(x => {
     const el = x.marker._icon; if(!el) return;
     const on = selection.has(x.pt.uid);
@@ -3297,6 +3300,33 @@ document.addEventListener('keydown', e=>{
 document.getElementById('expTakBtn').addEventListener('click', exportTAK);
 document.getElementById('expAllBtn').addEventListener('click', exportEverything);
 document.getElementById('expTakLayersBtn').addEventListener('click', exportTAKLayers);
+/* ---------- DJI points — pins on the M30T's map ----------
+   DJI Pilot 2 has no local "drop a file of pins on the map" import: PinPoints are made on the
+   controller, or synced down from DJI FlightHub 2. FlightHub 2 DOES import KML annotations
+   (points, lines, polygons) and pushes them to every Pilot 2 in the project — so this export is
+   a points-only KML kept deliberately plain: one folder, one Placemark per point, name, plain
+   coordinates, the point's label and notes in the description, colour from its affiliation.
+   Nothing a picky importer can trip on. It opens in Google Earth identically. */
+function exportDjiPointsKML(){
+  const pts = pointsForExport();   // your selection if there is one, otherwise every point — same rule as GPX
+  if (!pts.length){ toast('No points to export.'); return; }
+  const colours = new Set();
+  pts.forEach(({pt,ly}) => colours.add(colorOf(pt, ly)));
+  const styles = [...colours].map(c =>
+    `  <Style id="${styleId(c)}"><IconStyle><color>${kmlColor(c)}</color><scale>1.1</scale><Icon><href>https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LabelStyle><scale>0.9</scale></LabelStyle></Style>`).join('\n');
+  const pm = pts.map(({pt,ly}) =>
+    `    <Placemark><name>${esc((pt.id ? pt.id + ' · ' : '') + pt.name)}</name><styleUrl>#${styleId(colorOf(pt,ly))}</styleUrl><description>${esc(labelOf(pt,ly) + '. ' + pt.dms + (pt.notes ? '. ' + pt.notes : ''))}</description><Point><coordinates>${pt.lon},${pt.lat},0</coordinates></Point></Placemark>`).join('\n');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>PED points ${fdate()}</name>
+${styles}
+  <Folder><name>PED points</name>
+${pm}
+  </Folder>
+</Document></kml>`;
+  download(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }), 'PED_DJI_points_' + fdate() + '.kml',
+    { done: `${pts.length} point${pts.length===1?'':'s'} exported for the M30T's map. Import the file in DJI FlightHub 2 → your project → Annotations → Import, and the pins appear in Pilot 2 on the controller. (Pilot 2 cannot load pin files directly — the cloud sync is DJI's supported route.)`, doneMs: 10000 });
+}
+document.getElementById('expDjiPtsBtn').addEventListener('click', exportDjiPointsKML);
 document.getElementById('expKmlBtn').addEventListener('click', exportKML);
 document.getElementById('expCsvBtn').addEventListener('click', exportCSV);
 
