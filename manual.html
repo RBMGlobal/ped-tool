@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.21 · 5 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.22 · 5 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.21</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.22</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro · DJI Pilot 2</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -485,6 +485,17 @@
           <span class="ui">Profile</span> on the route card before flying a 60 m mission over a
           ridge.</li>
       </ul>
+      <h3>Putting points on the M30T's map</h3>
+      <p>
+        Pilot 2 has no way to load a file of pins directly — its PinPoints are made on the
+        controller, or synced down from <b>DJI FlightHub 2</b>, which is DJI's supported route for
+        exactly this. <span class="ui">DJI points (KML)</span> in the Export section writes a
+        points-only KML (your selection, or every point): each pin carries its ID and name, with
+        the affiliation, DMS and notes in the description. Import it in FlightHub 2 → your project
+        → Annotations → Import, and the pins appear on the map in Pilot 2 on every controller in
+        the project. No routes or areas are included in this file, deliberately; the same file also
+        opens in Google Earth.
+      </p>
       <div class="note note--watch">
         <p class="note-l">Quota, zoom and licence</p>
         <p>
@@ -1246,6 +1257,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.22</td><td class="num">5 Sep 2026</td><td>DJI points (KML) export — a points-only KML for putting pins on the M30T's map via DJI FlightHub 2 annotation import (Pilot 2 has no local pin-file import; FlightHub sync is DJI's supported route). Selection or all points, ID/name/affiliation/DMS/notes carried</td></tr>
             <tr><td class="mono">1.21</td><td class="num">5 Sep 2026</td><td>M30T button on every route card — exports the route's stops as a DJI wayline mission (WPML KMZ, aircraft and payload set for the M30T) that DJI Pilot 2 on the RC Plus imports via Flight Route → Import Route. 60 m above launch and 10 m/s as safe defaults, everything editable in Pilot 2 before flying; RC-lost and finish both return home</td></tr>
             <tr><td class="mono">1.20</td><td class="num">5 Sep 2026</td><td>Grab this view → TAK data package: one press fetches the on-screen Sentinel-2 imagery at up to 10 m as a single dated picture, adds it under Imagery (pass date, cloud cover and attribution on the card) and exports it as a TAK data package for ATAK — same pipeline as GeoTIFF imagery, so it imports and displays identically</td></tr>
             <tr><td class="mono">1.19</td><td class="num">2 Sep 2026</td><td>Sentinel-2: an emptied instance-ID field heals itself — the browser can clear the field behind the tool's back (an older session's form state restored into the page, or an extension), and that used to block the layer with a message. Pressing Sentinel-2, or leaving the field empty, now restores the team ID and carries on</td></tr>
@@ -1274,7 +1286,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.21, 5 September 2026. Kept alongside
+        PED Field Manual · covers version 1.22, 5 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
