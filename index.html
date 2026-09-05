@@ -3936,7 +3936,7 @@ function renderRouteList(){
     item.innerHTML = `<div class="rt-top"><input type="color" class="rt-col" value="${rt.color||'#0a58ff'}" title="Route colour"><input class="rt-name" value="${esc(rt.name)}" spellcheck="false" title="Click to rename"></div>`
       + `<div class="rt-meta">${rt.waypoints.length} stops${km}${routeEta(rt)} · ${rt.exact ? 'imported geometry' : rt.snapped ? 'road-snapped (OSM)' : 'straight lines'}</div>`
       + `<div class="rt-btns"><button class="rt-zoom">Zoom</button><button class="rt-edit${rt._edit?' on':''}">${rt._edit?'Done editing':'Edit stops'}</button><button class="rt-rev">Reverse</button></div>`
-      + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-exp">Export TAK</button><button class="rt-del">Delete</button></div>`;
+      + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-exp">Export TAK</button><button class="rt-m30" title="DJI wayline mission (KMZ) for the M30T — import on the RC Plus via Flight Route → Import Route">M30T</button><button class="rt-del">Delete</button></div>`;
     routeListEl.appendChild(item);
     item.querySelector('.rt-col').addEventListener('input', e => { rt.color = e.target.value; drawRoute(rt); scheduleAutosave(); });
     const nm = item.querySelector('.rt-name');
@@ -3966,6 +3966,7 @@ function renderRouteList(){
       drawRoute(rt); renderRouteList(); scheduleAutosave();
     });
     item.querySelector('.rt-exp').addEventListener('click', () => exportRouteTAK(uid));
+    item.querySelector('.rt-m30').addEventListener('click', () => exportRouteDji(uid));
     item.querySelector('.rt-del').addEventListener('click', () => { map.removeLayer(rt.group); delete routes[uid]; renderRouteList(); refreshSelUI(); scheduleAutosave(); toast(`Route “${rt.name}” removed.`); });
   });
 }
@@ -4042,6 +4043,92 @@ ${links}    <link_attr color="${argb}" method="Driving" direction="Infil" routet
 </event>`;
 }
 
+/* ---------- DJI wayline (WPML) — the route as a flyable M30T mission ----------
+   DJI Pilot 2 on the RC Plus imports routes only in DJI's own wayline format: a KMZ holding
+   wpmz/template.kml (what the app edits) and wpmz/waylines.wpml (what the aircraft executes),
+   per the published Cloud API spec. The stops become waypoints; the road geometry between them
+   is deliberately NOT sent — an aircraft does not follow the road, and a few thousand snapped
+   vertices would make an unflyable plan. Heights are RELATIVE TO THE LAUNCH POINT, speed and
+   everything else stay editable in Pilot 2 after import — the tool ships safe defaults, it does
+   not decide the flight. */
+const DJI = { height: 60, speed: 10 };   // m above launch, m/s — both editable in Pilot 2
+function djiWpmlXml(rt, exec){
+  const cfg = `  <wpml:missionConfig>
+    <wpml:flyToWaylineMode>safely</wpml:flyToWaylineMode>
+    <wpml:finishAction>goHome</wpml:finishAction>
+    <wpml:exitOnRCLost>executeLostAction</wpml:exitOnRCLost>
+    <wpml:executeRCLostAction>goBack</wpml:executeRCLostAction>
+    <wpml:takeOffSecurityHeight>20</wpml:takeOffSecurityHeight>
+    <wpml:globalTransitionalSpeed>${DJI.speed}</wpml:globalTransitionalSpeed>
+    <wpml:droneInfo><wpml:droneEnumValue>67</wpml:droneEnumValue><wpml:droneSubEnumValue>1</wpml:droneSubEnumValue></wpml:droneInfo>
+    <wpml:payloadInfo><wpml:payloadEnumValue>53</wpml:payloadEnumValue><wpml:payloadPositionIndex>0</wpml:payloadPositionIndex></wpml:payloadInfo>
+  </wpml:missionConfig>`;
+  const wps = rt.waypoints.map((w, i) => exec
+    ? `    <Placemark>
+      <Point><coordinates>${(+w.lon).toFixed(8)},${(+w.lat).toFixed(8)}</coordinates></Point>
+      <wpml:index>${i}</wpml:index>
+      <wpml:executeHeight>${DJI.height}</wpml:executeHeight>
+      <wpml:waypointSpeed>${DJI.speed}</wpml:waypointSpeed>
+      <wpml:waypointHeadingParam><wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode></wpml:waypointHeadingParam>
+      <wpml:waypointTurnParam><wpml:waypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:waypointTurnMode><wpml:waypointTurnDampingDist>0</wpml:waypointTurnDampingDist></wpml:waypointTurnParam>
+      <wpml:useStraightLine>1</wpml:useStraightLine>
+    </Placemark>`
+    : `    <Placemark>
+      <Point><coordinates>${(+w.lon).toFixed(8)},${(+w.lat).toFixed(8)}</coordinates></Point>
+      <wpml:index>${i}</wpml:index>
+      <wpml:ellipsoidHeight>${DJI.height}</wpml:ellipsoidHeight>
+      <wpml:height>${DJI.height}</wpml:height>
+      <wpml:useGlobalHeight>1</wpml:useGlobalHeight>
+      <wpml:useGlobalSpeed>1</wpml:useGlobalSpeed>
+      <wpml:useGlobalHeadingParam>1</wpml:useGlobalHeadingParam>
+      <wpml:useGlobalTurnParam>1</wpml:useGlobalTurnParam>
+    </Placemark>`).join('\n');
+  const folder = exec
+    ? `  <Folder>
+    <wpml:templateId>0</wpml:templateId>
+    <wpml:executeHeightMode>relativeToStartPoint</wpml:executeHeightMode>
+    <wpml:waylineId>0</wpml:waylineId>
+    <wpml:autoFlightSpeed>${DJI.speed}</wpml:autoFlightSpeed>
+${wps}
+  </Folder>`
+    : `  <Folder>
+    <wpml:templateType>waypoint</wpml:templateType>
+    <wpml:templateId>0</wpml:templateId>
+    <wpml:waylineCoordinateSysParam><wpml:coordinateMode>WGS84</wpml:coordinateMode><wpml:heightMode>relativeToStartPoint</wpml:heightMode></wpml:waylineCoordinateSysParam>
+    <wpml:autoFlightSpeed>${DJI.speed}</wpml:autoFlightSpeed>
+    <wpml:globalHeight>${DJI.height}</wpml:globalHeight>
+    <wpml:caliFlightEnable>0</wpml:caliFlightEnable>
+    <wpml:gimbalPitchMode>manual</wpml:gimbalPitchMode>
+    <wpml:globalWaypointHeadingParam><wpml:waypointHeadingMode>followWayline</wpml:waypointHeadingMode></wpml:globalWaypointHeadingParam>
+    <wpml:globalWaypointTurnMode>toPointAndStopWithDiscontinuityCurvature</wpml:globalWaypointTurnMode>
+    <wpml:globalUseStraightLine>1</wpml:globalUseStraightLine>
+${wps}
+  </Folder>`;
+  const now = Date.now();
+  const head = exec ? '' : `  <wpml:author>PED</wpml:author>
+  <wpml:createTime>${now}</wpml:createTime>
+  <wpml:updateTime>${now}</wpml:updateTime>
+`;
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:wpml="http://www.dji.com/wpmz/1.0.2">
+<Document>
+${head}${cfg}
+${folder}
+</Document>
+</kml>`;
+}
+async function exportRouteDji(uid){
+  const rt = routes[uid]; if (!rt) return;
+  if (!rt.waypoints || rt.waypoints.length < 2){ toast('A mission needs at least two stops.'); return; }
+  if (rt.waypoints.length > 65535){ toast('Too many stops for a DJI mission.'); return; }
+  const zip = new JSZip();
+  zip.file('wpmz/template.kml', djiWpmlXml(rt, false));
+  zip.file('wpmz/waylines.wpml', djiWpmlXml(rt, true));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  download(blob, slug(rt.name) + '_M30T.kmz', { done:
+    `“${rt.name}” exported as a DJI wayline mission — ${rt.waypoints.length} waypoints at ${DJI.height} m above the launch point, ${DJI.speed} m/s. `+
+    `Copy it to the RC Plus and import via Flight Route → Import Route (KMZ); height, speed and camera actions are all editable there before flying.`, doneMs: 9000 });
+}
 async function exportRouteTAK(uid){
   const rt = routes[uid]; if (!rt) return;
   const pkgUid = 'ROUTE-' + slug(rt.name) + '-' + fdate();
