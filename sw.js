@@ -3,7 +3,7 @@
    open the page with signal; the cached copy answers when there is none. Anything from another
    origin (map tiles, road snapping, elevation) is left alone entirely — those are never cached,
    both to respect the providers' terms and so nobody is looking at stale imagery. */
-const CACHE = 'ped-1.25';
+const CACHE = 'ped-1.26';
 const SHELL = ['./', './index.html', './manual.html', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-192.png', './icon-maskable-512.png',
   './apple-touch-icon.png'];
