@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.20 · 5 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.21 · 5 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,9 +260,9 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.20</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.21</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
-      <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro</dd></div>
+      <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro · DJI Pilot 2</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
     </dl>
   </div>
@@ -462,6 +462,28 @@
           <code>.json</code> — so the picture the team acted on is on record with its date.</li>
         <li><b>Size.</b> A full-resolution grab is typically 1–3 MB in the package — fine over
           Starlink or a TAK server; think before queuing several on a thin phone link.</li>
+      </ul>
+      <h3>Flying a route on the M30T</h3>
+      <p>
+        DJI Pilot 2 on the RC Plus does not read TAK packages, GPX or plain KML — routes go in
+        only as DJI's own wayline format. The <span class="ui">M30T</span> button on each route
+        card exports exactly that: a KMZ carrying <code>wpmz/template.kml</code> and
+        <code>wpmz/waylines.wpml</code> with the aircraft and payload set for the M30T. Copy it to
+        the controller (USB or shared storage) and import via <span class="ui">Flight Route →
+        Import Route</span>.
+      </p>
+      <ul>
+        <li><b>Stops become waypoints; the road geometry does not.</b> An aircraft does not follow
+          the road, so a snapped route's thousands of vertices are deliberately left out.</li>
+        <li><b>Defaults are safe, not decisions.</b> 60 m above the launch point, 10 m/s, nose
+          along the route, stop at each waypoint; on lost link the aircraft returns home, and it
+          returns home at the end. Height, speed, camera actions and all of it are editable in
+          Pilot 2 before flying — check every parameter there; the tool plans geometry, not the
+          flight.</li>
+        <li><b>Heights are relative to the launch point,</b> not to the ground under each waypoint.
+          Rising ground along the route eats clearance — check the elevation
+          <span class="ui">Profile</span> on the route card before flying a 60 m mission over a
+          ridge.</li>
       </ul>
       <div class="note note--watch">
         <p class="note-l">Quota, zoom and licence</p>
@@ -1224,6 +1246,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.21</td><td class="num">5 Sep 2026</td><td>M30T button on every route card — exports the route's stops as a DJI wayline mission (WPML KMZ, aircraft and payload set for the M30T) that DJI Pilot 2 on the RC Plus imports via Flight Route → Import Route. 60 m above launch and 10 m/s as safe defaults, everything editable in Pilot 2 before flying; RC-lost and finish both return home</td></tr>
             <tr><td class="mono">1.20</td><td class="num">5 Sep 2026</td><td>Grab this view → TAK data package: one press fetches the on-screen Sentinel-2 imagery at up to 10 m as a single dated picture, adds it under Imagery (pass date, cloud cover and attribution on the card) and exports it as a TAK data package for ATAK — same pipeline as GeoTIFF imagery, so it imports and displays identically</td></tr>
             <tr><td class="mono">1.19</td><td class="num">2 Sep 2026</td><td>Sentinel-2: an emptied instance-ID field heals itself — the browser can clear the field behind the tool's back (an older session's form state restored into the page, or an extension), and that used to block the layer with a message. Pressing Sentinel-2, or leaving the field empty, now restores the team ID and carries on</td></tr>
             <tr><td class="mono">1.18</td><td class="num">1 Sep 2026</td><td>Sentinel-2 works out of the box: a team Copernicus instance ID ships in the tool (30,000 tiles/month, shared), with the field overriding it per browser; default layer corrected to TRUE-COLOR-S2L2A, the atmospherically corrected product the team configuration actually serves</td></tr>
@@ -1251,7 +1274,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.20, 5 September 2026. Kept alongside
+        PED Field Manual · covers version 1.21, 5 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
