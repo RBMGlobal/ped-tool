@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.24 · 5 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.25 · 5 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.24</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.25</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro · DJI Pilot 2</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -692,8 +692,8 @@
         A photo of the drone operator's screen carries the grids in the banner — ACFT is the
         aircraft's own position, TGT is what the camera is locked on. Press
         <span class="ui">Read image</span> under the bulk paste box, drop the photo on the map and
-        choose <span class="ui">Read coordinates</span>, or paste a screenshot straight into the
-        box. The text is read off the image and, when a TGT line is found, a card shows the strip
+        choose <span class="ui">Read coordinates</span>, or paste a screenshot anywhere on the page
+        (Ctrl+V / ⌘V — when you are not typing in a field). The text is read off the image and, when a TGT line is found, a card shows the strip
         of the photo it was read from over the parsed grid — check the two match, name it, pick
         the layer, <span class="ui">Create point</span>. Height (HMSL) and the source line go into
         the point's notes; when the ACFT line read as well, one tick plots the aircraft too.
@@ -1281,6 +1281,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.25</td><td class="num">5 Sep 2026</td><td>Full-tool audit. Panning no longer re-saves the whole project (attachments included) to the browser after every map move — the view is kept separately and the newer of the two is restored. Large GeoTIFFs no longer freeze the page for the contrast stretch (a 2048-px RGB image went from ~15 s to well under a second). Ctrl+V of a screenshot now works anywhere on the page, not only in the bulk box. Autosave returns to full mode (attachments) once oversized imagery is removed. The Sentinel-2 ID field no longer rebuilds the tiles per keystroke, and a blanked field re-shows the ID in use. A TAK-imported point's ID now shows in its tooltip. The OCR engine's payload is released from the page once it has started. Hosted copy: a duplicate manifest / home-screen icon link from an older build removed</td></tr>
             <tr><td class="mono">1.24</td><td class="num">5 Sep 2026</td><td>Read image — on-device OCR. A photo of the drone operator's screen (ACFT/TGT banner) is read and the TGT grid offered as a point behind a confirm card that shows the source pixels; any other screenshot with coordinates falls through to the Bulk paste tick-list. The reader is embedded in the file, nothing is uploaded, works offline (file grows to ~5.7 MB)</td></tr>
             <tr><td class="mono">1.23</td><td class="num">5 Sep 2026</td><td>Home-screen icon — the tool now installs with its own icon (orange diamond, PED) on Android and iOS instead of a page screenshot, and shows it in the browser tab</td></tr>
             <tr><td class="mono">1.22</td><td class="num">5 Sep 2026</td><td>DJI points (KML) export — a points-only KML for putting pins on the M30T's map via DJI FlightHub 2 annotation import (Pilot 2 has no local pin-file import; FlightHub sync is DJI's supported route). Selection or all points, ID/name/affiliation/DMS/notes carried</td></tr>
@@ -1312,7 +1313,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.24, 5 September 2026. Kept alongside
+        PED Field Manual · covers version 1.25, 5 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
