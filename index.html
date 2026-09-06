@@ -1384,7 +1384,15 @@ let PROJ = 'P' + Math.random().toString(36).slice(2, 8).toUpperCase();
 const AUTOKEY = 'ped.autosave.v1';
 const AUTOKEY_LEGACY = 'opipb.autosave.v1';     // pre-rename sessions migrate forward
 const AUTOKEY_LEGACY2 = 'riskmap.autosave.v3';  // and the original Risk map ones
-let _autoT = null, _autoArmed = false, _liteWarned = false, _autoDeadWarned = false;   // armed once real content exists, so an untouched fresh page never overwrites a previous session's autosave
+let _autoT = null, _autoArmed = false, _liteWarned = false, _liteRuns = 0, _autoDeadWarned = false;
+const VIEWKEY = 'ped.view.v1';
+let _viewT = null;
+function scheduleViewSave(){
+  clearTimeout(_viewT);
+  _viewT = setTimeout(() => {
+    try { localStorage.setItem(VIEWKEY, JSON.stringify({ c: [map.getCenter().lat, map.getCenter().lng], z: map.getZoom(), base: curBase, hs: hsOn || undefined, t: Date.now() })); } catch(e){}
+  }, 800);
+}   // armed once real content exists, so an untouched fresh page never overwrites a previous session's autosave
 function scheduleAutosave(){
   clearTimeout(_autoT);
   _autoT = setTimeout(() => {
@@ -1392,8 +1400,11 @@ function scheduleAutosave(){
       if (allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length) _autoArmed = true;
       if (!_autoArmed) return;
       let ok = false;
-      // once the full save has failed on quota, do not re-stringify every attachment on every pan — go straight to lite
-      if (!_liteWarned){ try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); ok = true; } catch(qe){} }
+      // once the full save has failed on quota, most runs go straight to lite rather than
+      // re-stringifying every attachment — but every 8th run tries the full save again, so
+      // deleting the oversized imagery quietly puts attachment autosave back on
+      const tryFull = !_liteWarned || (++_liteRuns % 8 === 0);
+      if (tryFull){ try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); ok = true; if (_liteWarned){ _liteWarned = false; _liteRuns = 0; } } catch(qe){} }
       if (!ok){
         try {
           // quota — retry without attachments / imagery so the geometry at least survives
@@ -1586,7 +1597,9 @@ function setBase(k){
     // An empty instance field is never a reason to refuse: the browser can empty it behind our
     // back (an old session's form value restored into the new page, an extension firing input).
     // The team ID is the shipped default — put it back and carry on.
-    if (!S2.inst || !S2.inst.trim()){ S2.inst = S2_INST_DEFAULT; document.getElementById('s2Inst').value = S2_INST_DEFAULT; if (typeof saveUI === 'function') saveUI(); }
+    if (!S2.inst || !S2.inst.trim()){ S2.inst = S2_INST_DEFAULT; if (typeof saveUI === 'function') saveUI(); }
+    const fld = document.getElementById('s2Inst');
+    if (!fld.value.trim()) fld.value = S2.inst;   // state is intact but the field was blanked behind our back — show what is in use
     if (!bases.s2.layers.length) rebuildS2();
     if (!bases.s2.layers.length){ toast('Sentinel-2 needs an instance ID — paste one into the field under the basemap buttons (free account at dataspace.copernicus.eu).', 8000); return; }
     if (map.getZoom() < 8) toast('Sentinel-2 tiles start at zoom 8 — zoom in to the area you want.', 5000);
@@ -1597,12 +1610,18 @@ function setBase(k){
   document.getElementById('bm-'+k).classList.add('on');
   curBase = k;
   if (typeof refreshImgDateSoon === 'function') refreshImgDateSoon();
-  scheduleAutosave();
+  scheduleAutosave(); scheduleViewSave();
 }
 Object.keys(bases).forEach(k => document.getElementById('bm-'+k).addEventListener('click', () => setBase(k)));
-document.getElementById('s2Inst').addEventListener('input', e => { S2.inst = e.target.value.trim(); s2Apply(); });
+let _s2InstT = null;
+document.getElementById('s2Inst').addEventListener('input', e => {   // debounced: a 36-character ID typed in must not rebuild the tile stack 36 times
+  const v = e.target.value.trim();
+  clearTimeout(_s2InstT);
+  if (!v) return;                                       // emptied: the change handler below owns that case
+  _s2InstT = setTimeout(() => { S2.inst = v; s2Apply(); }, 350);
+});
 document.getElementById('s2Inst').addEventListener('change', e => {   // leaving the field empty means "back to the team ID"
-  if (!e.target.value.trim()){ S2.inst = S2_INST_DEFAULT; e.target.value = S2_INST_DEFAULT; s2Apply(); }
+  if (!e.target.value.trim()){ clearTimeout(_s2InstT); S2.inst = S2_INST_DEFAULT; e.target.value = S2_INST_DEFAULT; s2Apply(); }
 });
 document.getElementById('s2Layer').addEventListener('change', e => { S2.layer = e.target.value.trim() || 'TRUE-COLOR-S2L2A'; e.target.value = S2.layer; s2Apply(); });
 document.getElementById('s2To').addEventListener('change', e => { S2.to = e.target.value; s2Apply(); });
@@ -1629,6 +1648,7 @@ async function grabS2(){
   H = Math.min(2560, Math.max(256, Math.round(H * sc)));
   const w = s2Window();
   const label0 = btn.textContent; btn.disabled = true; btn.textContent = 'Fetching Sentinel-2…';
+  let ovId = null;
   try {
     const url = `https://sh.dataspace.copernicus.eu/ogc/wms/${encodeURIComponent(S2.inst)}` +
       `?SERVICE=WMS&REQUEST=GetMap&VERSION=1.1.1&LAYERS=${encodeURIComponent(S2.layer || 'TRUE-COLOR-S2L2A')}` +
@@ -1645,10 +1665,13 @@ async function grabS2(){
     const mPerPx = Math.max(10, Math.round(groundW / W));
     const id = createOverlay({ kind: 's2', name: `S2 ${passDate}${ccTxt}`, url: dataURL, bounds: b,
       meta: `Sentinel-2 pass ${passDate}${ccTxt} · ${W}×${H}px ≈${mPerPx} m/px · Contains modified Copernicus Sentinel data ${String(passDate).slice(0,4)}` });
+    ovId = id;
     await exportOverlayPkg(id);
   } catch(e){
     console.error(e);
-    toast(`Sentinel-2 grab failed — ${(e && e.message) || e}. The view stays as it was; nothing was exported.`, 8000);
+    toast(ovId
+      ? `Sentinel-2 grab: the imagery is on the map under Imagery, but the TAK export failed — ${(e && e.message) || e}. “TAK pkg” on its card retries the export.`
+      : `Sentinel-2 grab failed — ${(e && e.message) || e}. The view stays as it was; nothing was added.`, 8000);
   }
   btn.disabled = false; btn.textContent = label0;
 }
@@ -2025,7 +2048,11 @@ function fitAll(){
 if (allMarkers.length) fitAll(); else map.setView([9.1, 8.7], 6);
 document.getElementById('fitBtn').addEventListener('click', fitAll);
 L.control.scale({ imperial:false }).addTo(map);
-map.on('moveend', scheduleAutosave);
+/* Panning is a view change, not a content change. Re-serializing the whole project — attachments
+   and imagery included, megabytes on a busy day — into localStorage after every pan cost real time
+   on a tablet, synchronously. The view goes into its own small key instead; the restore path lays
+   the newer of the two views over the loaded project. Content edits still write the full blob. */
+map.on('moveend', scheduleViewSave);
 /* live cursor readout — decimal + MGRS (radius while drawing a circle) */
 const cposEl = document.getElementById('cursorPos');
 map.on('mousemove', e => {
@@ -2048,7 +2075,17 @@ function projDef(epsg){
   if(epsg>=32701 && epsg<=32760) return '+proj=utm +zone='+(epsg-32700)+' +south +datum=WGS84 +units=m +no_defs';
   try { proj4('EPSG:'+epsg); return 'EPSG:'+epsg; } catch(e){ return null; }
 }
-function pct(arr, p){ const a = Array.from(arr).filter(v => isFinite(v)); if(!a.length) return 0; a.sort((x,y)=>x-y); return a[Math.min(a.length-1, Math.max(0, Math.floor(p*(a.length-1))))]; }
+function pct(arr, p){
+  // sampled percentile: sorting all 4M pixels of a 2048² band took ~2.5 s, and the stretch calls
+  // this twice per channel — six sorts froze the page for the length of a brew. ~65k evenly
+  // strided samples give the same 2%/98% cut to well under a grey level, in milliseconds.
+  const n = arr.length, step = Math.max(1, Math.floor(n / 65536));
+  const a = [];
+  for (let i = 0; i < n; i += step){ const v = arr[i]; if (isFinite(v)) a.push(v); }
+  if(!a.length) return 0;
+  a.sort((x,y)=>x-y);
+  return a[Math.min(a.length-1, Math.max(0, Math.floor(p*(a.length-1))))];
+}
 let ovSeq = 0;
 const overlays = {};
 const ovListEl = document.getElementById('ovList');
@@ -2299,6 +2336,10 @@ function ocrInit(){
       workerPath: blobUrl, workerBlobURL: false, corePath: 'inline-core.wasm.js',
       cacheMethod: 'none', gzip: false, logging: false,
     });
+    // the worker holds everything it needs now — drop the ~4.7 MB of base64 from the DOM
+    // (kept intact on a failed init, so a retry still has its payload)
+    ['tzCore','tzWorker','tzEng'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+    URL.revokeObjectURL(blobUrl);
     return _ocrWorker;
   })();
   _ocrInitPromise.catch(() => { _ocrInitPromise = null; _ocrWorker = null; });
@@ -3186,7 +3227,7 @@ async function importTAK(files, label){
         if (!rec) return;                       // addPoint hands back the registry record, not the point
         const pt = rec.pt;
         added++;
-        if (p.id) pt.id = p.id;
+        if (p.id){ pt.id = p.id; rec.marker.setTooltipContent(esc(`${pt.id} · ${pt.name}`)); }
         pt.notes = tidyRemarks(p.notes, p.name);
         if (p.dotColor) pt.dotColor = p.dotColor;
         const atts = ATT_BY_UID[p.uid];
@@ -3324,6 +3365,15 @@ document.getElementById('bulkScanBtn').addEventListener('click', () => importSca
 document.getElementById('readImgBtn').addEventListener('click', () => document.getElementById('imgOcrFile').click());
 document.getElementById('imgOcrFile').addEventListener('change', e => { [...e.target.files].forEach(f => ocrReadImageFile(f)); e.target.value = ''; });
 document.getElementById('bulkText').addEventListener('paste', e => {
+  const imgs = [...(e.clipboardData && e.clipboardData.items || [])].filter(it => it.kind === 'file' && /^image\//.test(it.type));
+  if (!imgs.length) return;
+  e.preventDefault();
+  imgs.forEach(it => { const f = it.getAsFile(); if (f) ocrReadImageFile(f); });
+});
+document.addEventListener('paste', e => {
+  const t = e.target;
+  if (t && t.id === 'bulkText') return;                                        // its own handler reads images already
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;   // typing somewhere: leave the paste alone
   const imgs = [...(e.clipboardData && e.clipboardData.items || [])].filter(it => it.kind === 'file' && /^image\//.test(it.type));
   if (!imgs.length) return;
   e.preventDefault();
@@ -4946,7 +4996,7 @@ function setHillshade(on){
   hsOn = on;
   document.getElementById('hillshadeBtn').classList.toggle('on', on);
   if (on){ hsLayer.addTo(map); hsLayer.setZIndex(5); } else map.removeLayer(hsLayer);
-  scheduleAutosave();
+  scheduleAutosave(); scheduleViewSave();
 }
 document.getElementById('hillshadeBtn').addEventListener('click', () => setHillshade(!hsOn));
 
@@ -5321,6 +5371,11 @@ async function importGeoJSON(obj, fname){
   } catch(e){}
   const hasStuff = saved && ((saved.layers||[]).some(l => (l.points||[]).length) || (saved.routes||[]).length || (saved.shapes||[]).length || (saved.overlays||[]).length);
   if (!hasStuff) return;
+  try {   // the view is saved separately on every pan — if it is newer than the content blob, it wins
+    const v = JSON.parse(localStorage.getItem(VIEWKEY) || 'null');
+    if (v && v.c && (!saved.saved || !v.t || v.t >= Date.parse(saved.saved)))
+      saved.view = { c: v.c, z: v.z, base: v.base || (saved.view || {}).base, hs: v.hs };
+  } catch(e){}
   const bar = document.getElementById('restoreBar');
   document.getElementById('restoreWhen').textContent = saved.saved ? new Date(saved.saved).toLocaleString() : 'earlier';
   bar.style.display = 'flex';
@@ -5381,18 +5436,15 @@ function saveUI(){
   rz.addEventListener('dblclick', () => { wrap.style.setProperty('--panelw', '300px'); map.invalidateSize(); saveUI(); });
 })();
 
-/* ---------- hosted copy only: installable + works with no signal ----------
-   When this file is served from a web address, register an offline worker and an install
-   manifest so the team can open the URL once on a tablet, "Add to home screen", and keep
-   using it out of signal. Deliberately skipped for the local file (file://) and inside the
-   Android app, where a service worker would only get in the way of updates. Map tiles are
-   never cached — they come from the provider or not at all, exactly as they do offline now. */
+/* ---------- hosted copy only: works with no signal ----------
+   The install manifest and icons ship in the static <head> (since the home-screen icon build);
+   all that needs a web address is the offline worker, registered here. Deliberately skipped for
+   the local file (file://) and inside the Android app, where a service worker would only get in
+   the way of updates. Map tiles are never cached — they come from the provider or not at all,
+   exactly as they do offline now. */
 (function(){
   var hosted = location.protocol === 'https:' || location.hostname === 'localhost';
   if (!hosted || window.Capacitor) return;
-  var m = document.createElement('link'); m.rel = 'manifest'; m.href = 'manifest.webmanifest';
-  var i = document.createElement('link'); i.rel = 'apple-touch-icon'; i.href = 'icon-192.png';
-  document.head.appendChild(m); document.head.appendChild(i);
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
 })();
 
