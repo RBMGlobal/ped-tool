@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.27 · 6 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.28 · 6 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -260,7 +260,7 @@
       bulk here, where it is quick, then export once. Everything runs on the device you open it on.
     </p>
     <dl class="factbar">
-      <div class="fact"><dt>Applies to</dt><dd>Tool v1.27</dd></div>
+      <div class="fact"><dt>Applies to</dt><dd>Tool v1.28</dd></div>
       <div class="fact"><dt>Live at</dt><dd>rbmglobal.co.uk/ped-tool/</dd></div>
       <div class="fact"><dt>Feeds</dt><dd>ATAK · Air Nav Pro · DJI Pilot 2</dd></div>
       <div class="fact"><dt>Works offline</dt><dd>Yes, except tiles</dd></div>
@@ -500,8 +500,11 @@
         <p class="note-l">Quota, zoom and licence</p>
         <p>
           The account allows 30,000 tile requests a month. A screenful is roughly a dozen, so that is
-          over two thousand views — ample for targeted looks, not for browsing a province. Tiles
-          start at zoom 8: go to the place first on another basemap, then switch. Attribution
+          over two thousand views — ample for targeted looks, not for browsing a province. The
+          imagery draws between zoom 8 and 18, so pressing <span class="ui">Sentinel-2</span> from
+          further out moves you to zoom 8 on the same centre rather than showing you a blank map —
+          pan from there. Zooming back out afterwards is left alone, so the map does go blank if
+          you take it below 8. Attribution
           (<em>Contains modified Copernicus Sentinel data</em>) is shown on the map and must stay on
           anything you publish from it. The widely used EOX "Sentinel-2 cloudless" mosaic is deliberately
           <b>not</b> offered: it is a static annual composite under a non-commercial licence.
@@ -1305,6 +1308,7 @@
         <table>
           <thead><tr><th class="mono">Ver</th><th>Date</th><th>What changed</th></tr></thead>
           <tbody>
+            <tr><td class="mono">1.28</td><td class="num">6 Sep 2026</td><td>Pressing <span class="mono">Sentinel-2</span> now moves to a zoom the imagery actually draws at (8–18), keeping the centre, instead of leaving a blank map with a note telling you to zoom in. A project saved on Sentinel-2 outside that band no longer restores blank either. Zooming out afterwards is left alone</td></tr>
             <tr><td class="mono">1.27</td><td class="num">6 Sep 2026</td><td>Fixed: a coordinate written hemisphere-first (<span class="mono">N 12°16'59.93" E 7°41'29.61"</span>) read off an image was thrown away. The repair that puts a proper closing mark on the seconds was also eating the space after it, running the two halves together so the pair no longer parsed. Pasted text was never affected. The same fault was found and fixed in the LZ brief tool, which shares these rules</td></tr>
             <tr><td class="mono">1.26</td><td class="num">6 Sep 2026</td><td>Screen-photo reading rebuilt, sharing the detector developed for the LZ brief tool against ten photos of the client's GCS. The data strip is now found by the shape of its text rather than by cropping the top of the frame, so a photograph of a screen — the screen a bright rectangle inside a larger picture — reads as well as a screenshot; the picture is straightened first, each line is read at three sizes, and the reading most passes agree on wins. The confirm card shows the straightened strip and how many passes agreed. TGT and ACFT are told apart by the fixed layout of the banner when the labels themselves will not read (a Chinese-build screen). More OCR repairs. RAW, video and HEIC files now say what they are and what to send instead. On the sample set — the original photo plus tilted, low-resolution and screen-in-frame versions of it — this reads 5 of 5 where the previous build read 2</td></tr>
             <tr><td class="mono">1.25</td><td class="num">5 Sep 2026</td><td>Full-tool audit. Panning no longer re-saves the whole project (attachments included) to the browser after every map move — the view is kept separately and the newer of the two is restored. Large GeoTIFFs no longer freeze the page for the contrast stretch (a 2048-px RGB image went from ~15 s to well under a second). Ctrl+V of a screenshot now works anywhere on the page, not only in the bulk box. Autosave returns to full mode (attachments) once oversized imagery is removed. The Sentinel-2 ID field no longer rebuilds the tiles per keystroke, and a blanked field re-shows the ID in use. A TAK-imported point's ID now shows in its tooltip. The OCR engine's payload is released from the page once it has started. Hosted copy: a duplicate manifest / home-screen icon link from an older build removed</td></tr>
@@ -1339,7 +1343,7 @@
 
     <footer>
       <p>
-        PED Field Manual · covers version 1.27, 6 September 2026. Kept alongside
+        PED Field Manual · covers version 1.28, 6 September 2026. Kept alongside
         <code>PED_tool.html</code> in <em>Nigeria tool builds</em> and updated whenever the tool
         changes.
       </p>
