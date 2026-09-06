@@ -1549,6 +1549,11 @@ const bases = {
 // tile quota (30,000/month) counts against that account, delete or recreate it in the dashboard
 // to rotate. The field below overrides it for this browser.
 const S2_INST_DEFAULT = '691e4b42-9fee-497d-86c5-dd483e77ee41';
+/* The zoom band Sentinel-2 actually draws in. Below 8 the service serves nothing and
+   the map goes blank; above 18 Leaflet stops drawing the layer. Named once here so the
+   layer and the zoom-to-fit below cannot drift apart. (10 m pixels stop gaining detail
+   at about 15 — maxNativeZoom — past which the tiles are simply scaled up.) */
+const S2_MINZ = 8, S2_MAXZ = 18;
 const S2 = { inst: S2_INST_DEFAULT, layer: 'TRUE-COLOR-S2L2A', to: '', days: 20, cc: 20 };
 function s2Window(){
   const to = S2.to && /^\d{4}-\d{2}-\d{2}$/.test(S2.to) ? S2.to : new Date().toISOString().slice(0,10);
@@ -1561,7 +1566,7 @@ function rebuildS2(){
   const img = L.tileLayer.wms(`https://sh.dataspace.copernicus.eu/ogc/wms/${encodeURIComponent(S2.inst)}`, {
     layers: S2.layer || 'TRUE-COLOR-S2L2A', format: 'image/png', transparent: true, tileSize: 512,
     time: `${w.from}/${w.to}`, maxcc: +S2.cc || 20, priority: 'mostRecent', showlogo: false,
-    minZoom: 8, maxZoom: 18, maxNativeZoom: 15,
+    minZoom: S2_MINZ, maxZoom: S2_MAXZ, maxNativeZoom: 15,
     attribution: `Contains modified Copernicus Sentinel data ${w.to.slice(0,4)} &middot; Copernicus Data Space Ecosystem`
   });
   bases.s2.layers = [ wireTileWarn(img),
@@ -1586,6 +1591,23 @@ function rebuildMapbox(){
     : [];
 }
 let curBase = 'street'; bases.street.layers.forEach(l => l.addTo(map));
+/* Sentinel-2 only draws between S2_MINZ and S2_MAXZ. Outside that band the map is
+   simply blank, which reads as "the imagery is broken" rather than "you are too far
+   out" — so selecting the layer moves to the nearest zoom it can draw at, keeping the
+   centre. Zooming out afterwards is left alone: panning around at a wide zoom is a
+   normal thing to do, and fighting the scroll wheel would be worse than a blank map
+   the operator chose. */
+let s2NeedsZoom = false;
+function s2ClampZoom(){
+  const z = map.getZoom();
+  const t = Math.min(S2_MAXZ, Math.max(S2_MINZ, z));
+  if (t === z) return false;
+  map.setZoom(t);
+  toast(z < t
+    ? `Zoomed in to ${t} — Sentinel-2's widest level. Pan to the area you want.`
+    : `Zoomed out to ${t} — Sentinel-2's closest level.`, 5000);
+  return true;
+}
 function setBase(k){
   if (!bases[k] || k === curBase) return;
   if (k === 'mbhyb'){
@@ -1602,13 +1624,14 @@ function setBase(k){
     if (!fld.value.trim()) fld.value = S2.inst;   // state is intact but the field was blanked behind our back — show what is in use
     if (!bases.s2.layers.length) rebuildS2();
     if (!bases.s2.layers.length){ toast('Sentinel-2 needs an instance ID — paste one into the field under the basemap buttons (free account at dataspace.copernicus.eu).', 8000); return; }
-    if (map.getZoom() < 8) toast('Sentinel-2 tiles start at zoom 8 — zoom in to the area you want.', 5000);
+    s2NeedsZoom = true;   // applied after the swap below, so the tiles load once, at the right level
   }
   bases[curBase].layers.forEach(l => map.removeLayer(l));
   bases[k].layers.forEach(l => l.addTo(map));
   document.getElementById('bm-'+curBase).classList.remove('on');
   document.getElementById('bm-'+k).classList.add('on');
   curBase = k;
+  if (s2NeedsZoom){ s2NeedsZoom = false; s2ClampZoom(); }
   if (typeof refreshImgDateSoon === 'function') refreshImgDateSoon();
   scheduleAutosave(); scheduleViewSave();
 }
@@ -5598,6 +5621,7 @@ function loadProjectInner(obj, isRollback){
     if (obj.view && obj.view.c){
       if (obj.view.base && bases[obj.view.base] && obj.view.base !== curBase) document.getElementById('bm-'+obj.view.base).click();
       map.setView(obj.view.c, obj.view.z || 8);
+      if (curBase === 's2') s2ClampZoom();   // a view saved outside the band would restore blank
     } else fitAll();
     if (typeof setHillshade === 'function') setHillshade(!!(obj.view && obj.view.hs));
     scheduleAutosave();
