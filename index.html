@@ -2675,7 +2675,10 @@ function ocrFix(t){
     .replace(/(\d{1,2}),(\d{1,3})(?=\s*["″]?\s*[NSEW](?![A-Za-z]))/g, '$1.$2')  // 22,555"N
     .replace(new RegExp(OCR_DMSP + '(\\d{2})[ ]?(\\d{3})(?=\\s*["″°º]|\\s*[NSEW](?![A-Za-z]))', 'g'), '$1$2.$3')
     .replace(/([°º]\s*)(\d{1,2})(\d{2})[.,](\d{3})(?=\s*["″°º]|\s*[NSEW](?![A-Za-z]))/g, "$1$2'$3.$4")
-    .replace(new RegExp(OCR_DMSP + '(\\d{1,2}(?:[.,]\\d+)?)\\s*[°º*\'′"″´`]{1,2}\\s*(?=[NSEW](?![A-Za-z]))', 'g'), '$1$2"')
+    // the trailing whitespace is looked past, not consumed: written hemisphere-first
+    // (N 12°16'59.93" E 7°41'29.61"), the letter after the seconds belongs to the NEXT
+    // half, and eating the space glued the two halves together and lost the whole line
+    .replace(new RegExp(OCR_DMSP + '(\\d{1,2}(?:[.,]\\d+)?)\\s*[°º*\'′"″´`]{1,2}(?=\\s*[NSEW](?![A-Za-z]))', 'g'), '$1$2"')
     .replace(/(\d)\s*(?:''|´´|``)\s*(?=[NSEW]\b)/g, '$1"')
     .replace(/(\d{1,3})\s*[°º]\s*(\d{2})(\d{2})(\d{3})\s*["″]?\s*(?=[NSEW](?![A-Za-z]))/g, '$1°$2\'$3.$4"')
     .replace(/([NSEW\d])\s*\|\s*/g, (m,a) => a + ' ')
