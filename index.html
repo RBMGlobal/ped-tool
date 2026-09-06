@@ -2297,10 +2297,15 @@ let _importChain = Promise.resolve();
    in the three application/octet-stream blocks above the app script. Everything runs in this
    browser: the image is never uploaded anywhere. First use inflates and starts the engine
    (a moment); after that it stays warm for the session.
-   JOUAV-style OSD banners (ACFT/TGT lines) get a fast path: the top band of the photo is read
-   with a coordinate-character whitelist, the TGT line is parsed, and a confirm card shows the
-   pixels next to the parsed grid before anything is plotted. Anything else that yields
-   coordinates falls through to the same Bulk paste review flow as pasted text. */
+   The data strip is found by shape, not by position: character-shaped blobs chained into text
+   lines, the picture straightened off the best line, then each line read on its own at three
+   sizes. Readings that agree on a position are pooled and the position most passes agree on
+   wins; the TGT/ACFT label is taken from the words on the line, or from the fixed order of the
+   block when the label itself will not read. A confirm card shows the pixels beside the parsed
+   grid, with how many passes agreed, before anything is plotted. Anything else that yields
+   coordinates falls through to the same Bulk paste review flow as pasted text.
+   This pipeline is shared with the LZ brief tool, where it was built against ten photos of the
+   client's GCS — keep the two in step. */
 
 function ocrB64Bytes(id){
   const b64 = document.getElementById(id).textContent.trim();
@@ -2346,173 +2351,531 @@ function ocrInit(){
   return _ocrInitPromise;
 }
 
-/* canvas prep */
-function ocrScaled(src, w, h, targetW){
-  const s = Math.min(targetW, w) / w;
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
-  const g = c.getContext('2d', { willReadFrequently: true });
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(src, 0, 0, c.width, c.height);
-  return c;
-}
-function ocrCrop(src, x0, y0, x1, y1, targetW){
-  const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height;
-  const cw = Math.max(1, Math.round(w * (x1 - x0))), ch = Math.max(1, Math.round(h * (y1 - y0)));
-  const c = document.createElement('canvas');
-  const s = targetW / cw;
-  c.width = Math.round(cw * s); c.height = Math.round(ch * s);
-  const g = c.getContext('2d', { willReadFrequently: true });
-  g.imageSmoothingQuality = 'high';
-  g.drawImage(src, Math.round(w * x0), Math.round(h * y0), cw, ch, 0, 0, c.width, c.height);
-  return c;
-}
-function ocrGrayStretch(canvas){
-  const g = canvas.getContext('2d', { willReadFrequently: true });
-  const d = g.getImageData(0, 0, canvas.width, canvas.height);
-  const p = d.data, n = p.length / 4;
-  const lum = new Uint8Array(n), hist = new Uint32Array(256);
-  for (let i = 0; i < n; i++){
-    const v = (p[i*4]*0.299 + p[i*4+1]*0.587 + p[i*4+2]*0.114) | 0;
-    lum[i] = v; hist[v]++;
-  }
-  let lo = 0, hi = 255, acc = 0;
-  const cut = n * 0.01;
-  for (let v = 0; v < 256; v++){ acc += hist[v]; if (acc > cut){ lo = v; break; } }
-  acc = 0;
-  for (let v = 255; v >= 0; v--){ acc += hist[v]; if (acc > cut){ hi = v; break; } }
-  const span = Math.max(1, hi - lo);
-  for (let i = 0; i < n; i++){
-    const v = Math.max(0, Math.min(255, ((lum[i] - lo) * 255 / span) | 0));
-    p[i*4] = p[i*4+1] = p[i*4+2] = v; p[i*4+3] = 255;
-  }
-  g.putImageData(d, 0, 0);
-  return canvas;
-}
+/* ---------------------------------------------------------------------------
+   Finding the data strip on a photo of a ground-station screen.
 
-/* OCR text -> coordinates */
-function ocrTextClean(t){
-  return String(t)
-    .replace(/[’‘`´]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[ºσ˚⁰]/g, '°')
-    .replace(/(\d)[,](\d)/g, '$1.$2')
-    .replace(/(\d)\s*[oO]\s*(\d{1,2}\s*['"])/g, '$1°$2')
-    .replace(/[|]/g, ' ');
-}
-const OSD_DMS  = /(\d{1,3})\s*[°*]\s*(\d{1,2})\s*'\s*(\d{1,2}(?:\.\d+)?)\s*(?:"|''|”)\s*([NSEW])/g;
-const OSD_DMS2 = /(\d{1,3})[\s°*]+(\d{1,2})\s*['\s]\s*(\d{1,2}\.\d+)\s*(?:"|''|”)?\s*([NSEW])/g;
-function osdPairsFromLine(line, rx){
-  const re = rx || OSD_DMS;
-  const out = [];
-  let m;
-  re.lastIndex = 0;
-  while ((m = re.exec(line))){
-    const deg = +m[1], min = +m[2], sec = +m[3], hemi = m[4];
-    if (min >= 60 || sec >= 60) continue;
-    const isLat = hemi === 'N' || hemi === 'S';
-    if (isLat && deg > 90) continue;
-    if (!isLat && deg > 180) continue;
-    let dec = deg + min/60 + sec/3600;
-    if (hemi === 'S' || hemi === 'W') dec = -dec;
-    out.push({ dec, isLat, text: m[0] });
-  }
+   Rebuilt from the LZ brief tool's detector, which was developed against ten
+   real photos of the client's JOUAV GCS at different angles, resolutions and
+   formats. The two tools now share this pipeline line for line — keep them in
+   step.
+
+   What was here before — crop the top 45% of the frame and read it — only
+   works when the OSD spans the whole picture, which is true of a screenshot
+   and false of a photograph: the screen is a bright rectangle inside a larger
+   frame and the OSD is translucent over daylight imagery, so no row is dark
+   and the crop is mostly scenery. Row-brightness band finding was tried and
+   fails the same way; scoring rows by bright-stroke density drowns in
+   vegetation. What works: find character-shaped blobs, chain them into text
+   lines, and key on the one property scenery never reproduces — five or more
+   blobs of matching height in an evenly spaced row.
+--------------------------------------------------------------------------- */
+
+/* mean over a (2r+1) square, edges clamped, by running sums — one pass each way */
+function boxMean(src, W, H, r){
+  const tmp = new Float32Array(W*H), out = new Float32Array(W*H), n = 2*r+1;
+  for (let y = 0; y < H; y++){ const o = y*W; let s = 0;
+    for (let x = -r; x <= r; x++) s += src[o + Math.min(W-1, Math.max(0, x))];
+    for (let x = 0; x < W; x++){ tmp[o+x] = s/n;
+      s += src[o + Math.min(W-1, x+r+1)] - src[o + Math.max(0, x-r)]; } }
+  for (let x = 0; x < W; x++){ let s = 0;
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(H-1, Math.max(0, y))*W + x];
+    for (let y = 0; y < H; y++){ out[y*W+x] = s/n;
+      s += tmp[Math.min(H-1, y+r+1)*W + x] - tmp[Math.max(0, y-r)*W + x]; } }
   return out;
 }
-function extractOsd(rawText){
-  const text = ocrTextClean(rawText);
-  const res = { tgt: null, acft: null, generic: [] };
-  for (const line of text.split(/\n+/)){
-    const label = /\bTGT\b/i.test(line) ? 'tgt' : (/\bACFT\b/i.test(line) ? 'acft' : null);
-    let pairs = osdPairsFromLine(line);
-    if (label && !(pairs.find(p => p.isLat) && pairs.find(p => !p.isLat)))
-      pairs = osdPairsFromLine(line, OSD_DMS2);
-    const lat = pairs.find(p => p.isLat), lon = pairs.find(p => !p.isLat);
-    const hm = line.match(/H?MSL\s*[:;]?\s*(\d{2,5})\s*m/i);
-    if (lat && lon){
-      const rec = { lat: +lat.dec.toFixed(6), lon: +lon.dec.toFixed(6), hmsl: hm ? +hm[1] : null, line: line.trim() };
-      if (label && !res[label]) res[label] = rec; else if (!label) res.generic.push(rec);
-    }
-  }
-  return res;
+/* Sauvola-style local threshold. pol 1 = light text on a darker ground. */
+function osdBinarise(a, W, H, win, pol){
+  const r = Math.max(1, (win-1) >> 1), k = 0.18;
+  const sq = new Float32Array(W*H); for (let i = 0; i < W*H; i++) sq[i] = a[i]*a[i];
+  const m = boxMean(a, W, H, r), m2 = boxMean(sq, W, H, r), b = new Uint8Array(W*H);
+  for (let i = 0; i < W*H; i++){ const sd = Math.sqrt(Math.max(m2[i] - m[i]*m[i], 0));
+    if (pol > 0){ const t = Math.max(m[i]*(1 + k*(sd/128 - 1)), m[i] + 6); b[i] = a[i] > t ? 1 : 0; }
+    else { const t = Math.min(m[i]*(1 - k*(sd/128 - 1)), m[i] - 6); b[i] = a[i] < t ? 1 : 0; } }
+  return b;
+}
+/* bounding boxes of blobs the right shape to be characters */
+function osdChars(a, W, H, win, pol, hmin, hmax){
+  const b = osdBinarise(a, W, H, win, pol), seen = new Uint8Array(W*H), st = new Int32Array(W*H), out = [];
+  for (let i = 0; i < W*H; i++){
+    if (!b[i] || seen[i]) continue;
+    let sp = 0; st[sp++] = i; seen[i] = 1;
+    let x0 = i % W, x1 = x0, y0 = (i/W)|0, y1 = y0, area = 0;
+    while (sp){ const p = st[--sp], px = p % W, py = (p/W)|0; area++;
+      if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py;
+      for (let dy = -1; dy <= 1; dy++){ const ny = py + dy; if (ny < 0 || ny >= H) continue;
+        for (let dx = -1; dx <= 1; dx++){ const nx = px + dx; if (nx < 0 || nx >= W) continue;
+          const q = ny*W + nx; if (b[q] && !seen[q]){ seen[q] = 1; st[sp++] = q; } } } }
+    const h = y1 - y0 + 1, w = x1 - x0 + 1;
+    if (h < hmin || h > hmax || w > h*3) continue;
+    const fill = area/(h*w); if (fill < 0.06 || fill > 0.97) continue;
+    out.push([x0, y0, x1+1, y1+1, h]); }
+  return out;
+}
+/* least-squares slope of a chain's baseline, clamped to about 12 degrees */
+function osdSlope(ch){
+  let sx = 0, sy = 0; for (const c of ch){ sx += (c[0]+c[2])*0.5; sy += c[3]; }
+  const mx = sx/ch.length, my = sy/ch.length; let num = 0, den = 0;
+  for (const c of ch){ const vx = (c[0]+c[2])*0.5 - mx; num += vx*(c[3] - my); den += vx*vx; }
+  if (den < 1e-6) return 0;
+  return Math.max(-0.21, Math.min(0.21, num/den));
+}
+/* Chain characters into text lines: similar height, on the same baseline, close
+   in x. The baseline is a slope, not a constant — a hand-held photo runs a
+   couple of degrees off level, which across an OSD line is more drift than the
+   text is tall. With a fixed test the chain breaks mid-line and hands the row's
+   first word to the line above: that is how "TGT:" ends up on the aircraft's
+   line, and the target then comes back unlabelled. */
+function osdRows(chars, xgap){
+  xgap = xgap || 1.6; if (!chars.length) return [];
+  const cs = chars.slice().sort((a,b) => a[0]-b[0]), used = new Uint8Array(cs.length), rows = [];
+  for (let i = 0; i < cs.length; i++){
+    if (used[i]) continue; used[i] = 1;
+    const ch = [cs[i]]; let cur = cs[i], sl = 0;
+    for (let j = i+1; j < cs.length; j++){
+      if (used[j]) continue; const d = cs[j];
+      const hr = Math.max(cur[4], d[4]) / Math.max(1, Math.min(cur[4], d[4]));
+      if (hr > 2) continue;
+      const gap = d[0] - cur[2]; if (gap < -cur[4] || gap > cur[4]*xgap) continue;
+      const dx = (d[0]+d[2])*0.5 - (cur[0]+cur[2])*0.5, want = cur[3] + sl*dx;
+      if (Math.abs(d[3] - want) > 0.45*Math.min(cur[4], d[4])) continue;
+      used[j] = 1; ch.push(d); if (ch.length >= 3) sl = osdSlope(ch); cur = d; }
+    if (ch.length >= 5) rows.push(ch); }
+  return osdMergeCollinear(rows);
+}
+/* One OSD line is several columns with wide gaps between them:
+
+     ACFT:  11°55'31.051"N      7° 4'22.588"E      HMSL: 1650m
+
+   Chaining stops at each gap, so the latitude, the longitude and the altitude
+   come out as three separate runs and no run carries a whole coordinate pair.
+   Runs that share a baseline and a text height are the same physical line, so
+   join them — here, on runs already proven to be text, rather than by
+   loosening the chain gap, which would let scenery in. */
+function osdMergeCollinear(rows, gapMult){
+  gapMult = gapMult || 7; if (rows.length < 2) return rows;
+  const ext = r => { let a = 1e9, b = 1e9, c = -1e9, d = -1e9, h = 0;
+    for (const q of r){ a = Math.min(a, q[0]); b = Math.min(b, q[1]); c = Math.max(c, q[2]); d = Math.max(d, q[3]); h += q[4]; }
+    return [a, b, c, d, h/r.length]; };
+  const items = rows.map(r => ({ e: ext(r), r: r })).sort((p,q) => p.e[0]-q.e[0]);
+  const used = new Uint8Array(items.length), out = [];
+  for (let i = 0; i < items.length; i++){
+    if (used[i]) continue; used[i] = 1;
+    let cur = items[i].e, ch = items[i].r.slice();
+    for (let j = i+1; j < items.length; j++){
+      if (used[j]) continue; const f = items[j].e;
+      const hr = Math.max(cur[4], f[4]) / Math.max(1, Math.min(cur[4], f[4])), gap = f[0] - cur[2];
+      const sl = ch.length >= 3 ? osdSlope(ch) : 0;
+      const want = cur[3] + sl*((f[0]+f[2])*0.5 - (cur[0]+cur[2])*0.5);
+      const ov = Math.min(cur[4], f[4]) - Math.abs(f[3] - want);
+      if (hr < 1.35 && ov > 0.35*Math.min(cur[4], f[4]) && gap > -cur[4] && gap < cur[4]*gapMult){
+        used[j] = 1; ch = ch.concat(items[j].r);
+        cur = [Math.min(cur[0], f[0]), Math.min(cur[1], f[1]),
+               Math.max(cur[2], f[2]), Math.max(cur[3], f[3]), (cur[4]+f[4])*0.5]; } }
+    out.push(ch); }
+  return out;
+}
+function osdBoxOverlap(p, q){
+  const ix = Math.min(p[2], q[2]) - Math.max(p[0], q[0]), iy = Math.min(p[3], q[3]) - Math.max(p[1], q[1]);
+  if (ix <= 0 || iy <= 0) return 0;
+  return ix*iy / Math.max(1, Math.min((p[2]-p[0])*(p[3]-p[1]), (q[2]-q[0])*(q[3]-q[1])));
+}
+/* text lines, best first; boxes in source pixels of the buffer they came from */
+function osdLines(grey, W, H, scale, minChars){
+  minChars = minChars || 5;
+  const hmin = Math.max(6, H*0.008), hmax = H*0.075;
+  let win = Math.round(Math.max(15, Math.min(101, hmax*2))); if (!(win & 1)) win++;
+  const found = [];
+  for (const pol of [1, -1]){
+    for (const ch of osdRows(osdChars(grey, W, H, win, pol, hmin, hmax))){
+      if (ch.length < minChars) continue;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9, hs = 0, hs2 = 0;
+      for (const c of ch){ x0 = Math.min(x0, c[0]); y0 = Math.min(y0, c[1]);
+        x1 = Math.max(x1, c[2]); y1 = Math.max(y1, c[3]); hs += c[4]; hs2 += c[4]*c[4]; }
+      const n = ch.length, hm = hs/n, hcv = Math.sqrt(Math.max(hs2/n - hm*hm, 0))/Math.max(1, hm);
+      const xc = ch.map(c => (c[0]+c[2])*0.5).sort((a,b) => a-b);
+      let pcv = 1;
+      if (xc.length > 1){ const dx = []; for (let i = 1; i < xc.length; i++) dx.push(xc[i] - xc[i-1]);
+        const dm = dx.reduce((a,b) => a+b, 0)/dx.length;
+        let v = 0; for (const d of dx) v += (d-dm)*(d-dm);
+        pcv = Math.sqrt(v/dx.length)/Math.max(1, dm); }
+      let wsum = 0; for (const c of ch) wsum += c[2] - c[0];
+      const fill = wsum/Math.max(1, x1 - x0);
+      const score = Math.sqrt(n)/(1 + 3*hcv + 1.2*pcv)*Math.min(1, fill*2.5);
+      found.push({ box: [x0/scale, y0/scale, x1/scale, y1/scale], score: score,
+                   height: (y1-y0)/scale, chars: n, polarity: pol }); } }
+  found.sort((a,b) => b.score - a.score);
+  const keep = [];
+  for (const b of found){ if (keep.some(k => osdBoxOverlap(b.box, k.box) > 0.55)) continue; keep.push(b); }
+  return keep;
+}
+/* Group lines that sit directly under one another into blocks. The JOUAV OSD is
+   always two stacked lines — aircraft above, target below — so the block, not
+   the line, is the unit the reader reasons about. */
+function osdBlocks(ls, gapMult){
+  gapMult = gapMult || 1.4; if (!ls.length) return [];
+  const byy = ls.slice().sort((a,b) => a.box[1] - b.box[1]), groups = []; let cur = [byy[0]];
+  for (let i = 1; i < byy.length; i++){ const b = byy[i], prev = cur[cur.length-1];
+    const gap = b.box[1] - prev.box[3];
+    const ov = Math.min(prev.box[2], b.box[2]) - Math.max(prev.box[0], b.box[0]);
+    const narrow = Math.min(prev.box[2] - prev.box[0], b.box[2] - b.box[0]);
+    const hr = Math.max(prev.height, b.height) / Math.max(1, Math.min(prev.height, b.height));
+    if (gap < prev.height*gapMult && ov > narrow*0.35 && hr < 1.8) cur.push(b); else { groups.push(cur); cur = [b]; } }
+  groups.push(cur);
+  const out = groups.map(g => { g = g.slice().sort((a,b) => a.box[1] - b.box[1]);
+    const x0 = Math.min(...g.map(b => b.box[0])), x1 = Math.max(...g.map(b => b.box[2]));
+    const y0 = Math.min(...g.map(b => b.box[1])), y1 = Math.max(...g.map(b => b.box[3]));
+    return { box: [x0, y0, x1, y1], lines: g, height: g[0].height,
+             score: g.reduce((s,b) => s + b.score, 0)*(1 + 0.6*(g.length - 1)) }; });
+  out.sort((a,b) => b.score - a.score); return out;
+}
+/* Deskew angle for one block, degrees, positive anticlockwise.
+
+   Text lines are horizontal, so the row profile of a level block is a comb —
+   tall peaks on the text, near zero between the lines — and a tilted one is
+   smeared flat. The angle whose profile is most peaked is the tilt. The profile
+   is taken by shearing the row index rather than rotating pixels: the same
+   thing at these angles, and cheap enough for a phone. Bins run past both ends
+   so no pixel is clamped — clamping piles the sheared tail into the edge bins
+   and the most extreme angle then always wins. */
+function osdSkew(img, box, span, step){
+  span = span || 6; step = step || 0.5;
+  const pad = (box[3] - box[1])*0.4;
+  const cw = Math.round(box[2] - box[0]), chh = Math.round(Math.min(img.h, box[3] + pad) - Math.max(0, box[1] - pad));
+  if (cw < 40 || chh < 8) return 0;
+  const g = osdGreyOf(img, box[0], Math.max(0, box[1] - pad), cw, chh, 900), W = g.W, H = g.H, a = g.a;
+  const win = Math.max(5, (H >> 1)|1), m = boxMean(a, W, H, (win-1) >> 1), e = new Float32Array(W*H);
+  for (let i = 0; i < W*H; i++) e[i] = Math.max(Math.abs(a[i] - m[i]) - 6, 0);
+  const off = Math.ceil(Math.abs(Math.tan(span*Math.PI/180))*W*0.5) + 2, nb = H + 2*off;
+  let best = -1, bang = 0;
+  for (let ang = -span; ang <= span + 1e-9; ang += step){
+    const sl = -Math.tan(ang*Math.PI/180), p = new Float64Array(nb);
+    for (let y = 0; y < H; y++){ const o = y*W;
+      for (let x = 0; x < W; x++){ const v = e[o+x]; if (!v) continue;
+        p[Math.round(y + sl*(x - W*0.5)) + off] += v; } }
+    let s = 0; for (let i = 0; i < nb; i++) s += p[i]; const mu = s/nb;
+    let v = 0; for (let i = 0; i < nb; i++){ const d = p[i] - mu; v += d*d; }
+    v /= nb; if (v > best){ best = v; bang = ang; } }
+  return Math.round(bang*100)/100;
+}
+/* the working picture: the photo drawn 1:1, or straightened first. Capped so a
+   12-megapixel phone photo still fits a canvas on a tablet. */
+const OSD_MAXPX = 14e6;
+function osdCanvas(img, angle){
+  let W0 = img.naturalWidth || img.width, H0 = img.naturalHeight || img.height;
+  let k = Math.min(1, Math.sqrt(OSD_MAXPX/(W0*H0)));
+  const t = (angle || 0)*Math.PI/180, ca = Math.abs(Math.cos(t)), sa = Math.abs(Math.sin(t));
+  const W = Math.max(1, Math.round((W0*ca + H0*sa)*k)), H = Math.max(1, Math.round((W0*sa + H0*ca)*k));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d', { willReadFrequently: true }); c.imageSmoothingQuality = 'high';
+  c.translate(W/2, H/2); c.rotate(-t); c.drawImage(img, -W0*k/2, -H0*k/2, W0*k, H0*k);
+  return cv;
+}
+/* greyscale buffer of a region of the working picture, at most maxW wide */
+function osdGrey(cv, sx, sy, sw, sh, maxW){
+  const s = Math.min(1, maxW/sw), W = Math.max(1, Math.round(sw*s)), H = Math.max(1, Math.round(sh*s));
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  const c = t.getContext('2d', { willReadFrequently: true }); c.imageSmoothingQuality = 'high';
+  c.drawImage(cv, sx, sy, sw, sh, 0, 0, W, H);
+  const d = c.getImageData(0, 0, W, H).data, a = new Float32Array(W*H);
+  for (let i = 0, j = 0; i < a.length; i++, j += 4) a[i] = 0.299*d[j] + 0.587*d[j+1] + 0.114*d[j+2];
+  return { a: a, W: W, H: H, scale: s };
+}
+function osdGreyOf(img, x, y, w, h, maxW){ return osdGrey(img.cv, x, y, w, h, maxW); }
+/* Detect once, measure the tilt of the best block, and if it is worth
+   correcting, straighten the whole picture and detect again. The second pass
+   gets whole lines — including the label at the start of the row, which on a
+   tilted line is the part that breaks away first and lands on the row above. */
+function osdFind(img, width){
+  width = width || 1600;
+  let cv = osdCanvas(img, 0);
+  const pass = c => { const g = osdGrey(c, 0, 0, c.width, c.height, width);
+    return osdBlocks(osdLines(g.a, g.W, g.H, g.scale)); };
+  let bs = pass(cv);
+  if (!bs.length) return { cv: cv, blocks: bs, angle: 0 };
+  /* measured on the best block's first line, not the block: a block can pick up
+     a stray line from elsewhere on the screen at its own tilt, and the averaged
+     profile then peaks at zero on a picture that is plainly askew. */
+  const ang = osdSkew({ cv: cv, h: cv.height }, bs[0].lines[0].box);
+  if (Math.abs(ang) < 0.45) return { cv: cv, blocks: bs, angle: 0 };
+  const rc = osdCanvas(img, ang), bs2 = pass(rc);
+  /* the angle is a measurement off a real text line, not a guess, so it is
+     trusted unless straightening plainly destroyed the detection */
+  if (bs2.length && bs2[0].score >= bs[0].score*0.6) return { cv: rc, blocks: bs2, angle: ang };
+  return { cv: cv, blocks: bs, angle: 0 };
+}
+/* padded crop of one line or block, scaled so the text is targetH px tall —
+   Tesseract wants roughly 30–40 px of cap height, and small text on a
+   low-resolution photo only reads once it has been blown up. Vertical padding
+   is tighter than horizontal on purpose: OSD lines stack close together and
+   half a line of the neighbour bleeding in is read as a second line of text. */
+function osdCrop(cv, box, targetH){
+  const h = box[3] - box[1], pad = h*0.6, vpad = h*0.28;
+  const x0 = Math.max(0, Math.round(box[0] - pad)), y0 = Math.max(0, Math.round(box[1] - vpad));
+  const x1 = Math.min(cv.width, Math.round(box[2] + pad)), y1 = Math.min(cv.height, Math.round(box[3] + vpad));
+  const w = Math.max(1, x1 - x0), hh = Math.max(1, y1 - y0);
+  let s = targetH ? targetH/Math.max(1, h) : 1; s = Math.min(s, 9000/w); if (s < 0.15) s = 0.15;
+  const t = document.createElement('canvas');
+  t.width = Math.max(1, Math.round(w*s)); t.height = Math.max(1, Math.round(hh*s));
+  const c = t.getContext('2d', { willReadFrequently: true }); c.imageSmoothingQuality = 'high';
+  c.drawImage(cv, x0, y0, w, hh, 0, 0, t.width, t.height);
+  const d = c.getImageData(0, 0, t.width, t.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4){ const l = 0.299*p[i] + 0.587*p[i+1] + 0.114*p[i+2];
+    p[i] = p[i+1] = p[i+2] = l; p[i+3] = 255; }
+  c.putImageData(d, 0, 0); return t;
 }
 
-async function ocrImageForCoords(imgEl){
+/* What OCR does to a coordinate line, undone. Every rule was seen on a real
+   screen photo of the JOUAV ground station: a second ° where the minute mark
+   belongs (7° 4°22.588"E), the decimal point in the seconds dropped (54491") or
+   read as a space (22 588") or as a comma (22,555"), both separators gone at
+   once on a low-resolution shot (5725533"), ° or ' where the closing " should
+   be (17.850°N), letter O for zero and T for one inside a number.
+
+   The last rule is the one that recovers the most readings. OCR often
+   hallucinates a character in the gap between the latitude and the longitude —
+   a bracket, an underscore, a full stop — and that alone splits the pair and
+   throws the whole line away even though both halves read perfectly.
+
+   No lookbehind: it is unsupported on older iOS Safari, and a syntax error here
+   would take the whole tool down, not just the reader. Mirrors the LZ brief
+   tool's ocrFix and cli/lzocr.py fix_text() rule for rule, in the same order. */
+const OCR_SUBS = { ' ':' ', ' ':' ', ' ':' ', ' ':' ', ' ':' ',
+  '‘':"'", '’':"'", '′':"'", 'ʹ':"'", '´':"'", '`':"'", '‵':"'",
+  '“':'"', '”':'"', '″':'"', 'ʺ':'"', '‶':'"',
+  'º':'°', '˚':'°', '∘':'°', '◦':'°',
+  '–':'-', '—':'-', '−':'-', '‐':'-', '‑':'-',
+  '|':',', '¦':',' };
+function ocrTextClean(t){
+  if (!t) return '';
+  return String(t)
+    .replace(/[     ‘’′ʹ´`‵“”″ʺ‶º˚∘◦–—−‐‑|¦]/g, c => OCR_SUBS[c] || c)
+    .replace(/\bdeg(?:rees?)?\b/gi, '°')
+    .replace(/(\d)\s*\bmin(?:utes?)?\b/gi, "$1'")
+    .replace(/(\d)\s*\bsec(?:onds?)?\b/gi, '$1"')
+    .replace(/(\d)s(?=\s*[NSEW](?![A-Za-z]))/g, '$1"');
+}
+const OCR_DMSP = "(\\d{1,3}\\s*[°º]\\s*\\d{1,2}\\s*['′]\\s*)";
+function ocrFix(t){
+  return ocrTextClean(t)
+    // letter-for-digit confusions, but only with a digit on each side: the OSD
+    // never puts a lone letter inside a number, so this is safe where a blanket
+    // substitution would not be. Each was seen on a real screen photo.
+    .replace(/(\d)[oOQ](?=\d)/g, (m,a) => a + '0')
+    .replace(/(\d)[TIl](?=\d)/g, (m,a) => a + '1')                              // 29.9T9
+    .replace(/(\d)B(?=\d)/g, (m,a) => a + '8')                                  // 38.8B0
+    .replace(/(\d)S(?=\d)/g, (m,a) => a + '5')
+    .replace(/(\b\d{1,3})["″](?=\d{1,2}\s*['′])/g, '$1°')                       // 5"19'20.218
+    // the degree mark lost altogether, leaving a gap (11 56'17.850"N). Only fires
+    // where a minute mark follows, and the parser still range-checks the result,
+    // so a bare pair of numbers in prose cannot be dragged in. Not in the LZ tool
+    // yet — worth carrying across.
+    .replace(/(\b\d{1,3})\s+(?=\d{1,2}\s*['′]\s*\d)/g, '$1°')
+    .replace(/([°º]\s*\d{1,2})[°º](?=\d{2})/g, "$1'")                           // 7° 4°22.588"
+    .replace(/(['′]\s*\d{1,2})['′](?=\d{2,3})/g, '$1.')                         // 33'19'422"
+    .replace(/(\d{1,2}),(\d{1,3})(?=\s*["″]?\s*[NSEW](?![A-Za-z]))/g, '$1.$2')  // 22,555"N
+    .replace(new RegExp(OCR_DMSP + '(\\d{2})[ ]?(\\d{3})(?=\\s*["″°º]|\\s*[NSEW](?![A-Za-z]))', 'g'), '$1$2.$3')
+    .replace(/([°º]\s*)(\d{1,2})(\d{2})[.,](\d{3})(?=\s*["″°º]|\s*[NSEW](?![A-Za-z]))/g, "$1$2'$3.$4")
+    .replace(new RegExp(OCR_DMSP + '(\\d{1,2}(?:[.,]\\d+)?)\\s*[°º*\'′"″´`]{1,2}\\s*(?=[NSEW](?![A-Za-z]))', 'g'), '$1$2"')
+    .replace(/(\d)\s*(?:''|´´|``)\s*(?=[NSEW]\b)/g, '$1"')
+    .replace(/(\d{1,3})\s*[°º]\s*(\d{2})(\d{2})(\d{3})\s*["″]?\s*(?=[NSEW](?![A-Za-z]))/g, '$1°$2\'$3.$4"')
+    .replace(/([NSEW\d])\s*\|\s*/g, (m,a) => a + ' ')
+    .replace(/([NSEW])[\s_.,;:*=+~^<>«»‹›·•-]{1,8}(?=\d)/g, (m,a) => a + ' ');
+}
+
+/* Which line is the target's.
+
+   `perLine` is {line index: label read off that line} for the lines of one block
+   that yielded a coordinate. A label that was read is believed. Beyond that, the
+   JOUAV OSD is a fixed two-line block — aircraft first, target second — so when
+   a block has exactly two coordinate-bearing lines the missing label can be
+   filled in from the order. Without this a Chinese-build screen (本机位置 /
+   目标位置, which an English model returns as noise) leaves both lines
+   unlabelled and the tool cannot tell the aircraft from the target at all.
+   Placed labels carry a "?" so the reading can say how it knows. */
+function osdLabels(perLine){
+  const out = {}; for (const k in perLine) out[k] = perLine[k];
+  const order = Object.keys(perLine).map(Number).sort((a,b) => a-b);
+  if (order.length !== 2) return out;
+  const a = order[0], b = order[1];
+  if (out[a] === '' && out[b] === '')      { out[a] = 'ACFT?'; out[b] = 'TGT?'; }
+  else if (out[a] === 'ACFT' && out[b] === '') out[b] = 'TGT?';
+  else if (out[b] === 'TGT'  && out[a] === '') out[a] = 'ACFT?';
+  else if (out[a] === 'TGT'  && out[b] === '') out[b] = 'ACFT?';
+  else if (out[b] === 'ACFT' && out[a] === '') out[a] = 'TGT?';
+  return out;
+}
+function osdInfer(reads){
+  const byblock = {};
+  for (const r of reads){ if (r.bi == null || r.li == null) continue;
+    const cur = byblock[r.bi] || (byblock[r.bi] = {});
+    cur[r.li] = r.tag || cur[r.li] || ''; }
+  const inferred = {}; for (const bi in byblock) inferred[bi] = osdLabels(byblock[bi]);
+  for (const r of reads) if (!r.tag && inferred[r.bi]) r.tag = inferred[r.bi][r.li] || '';
+}
+
+const OCR_HEIGHTS = [34, 52, 80], OCR_MAXBLOCKS = 3, OCR_MAXLINES = 4;
+const TGT_WORDS = /\b(TGT|TARGET|TRGT|TAR|OBJ|OBJECTIVE|POI|MARK|LASER|CENTER|CENTRE)\b|目标/i;
+const ACFT_WORDS = /\b(ACFT|AIRCRAFT|A\/?C|UAV|UAS|OWNSHIP|HOME|GCS|PLANE|DRONE)\b|本机/i;
+/* HMSL rides along in the notes when the line carried one. */
+function ocrHmsl(line){ const m = String(line).match(/H?MSL\s*[:;]?\s*(\d{2,5})\s*m/i); return m ? +m[1] : null; }
+
+/* Read a photo of a ground-station screen.
+
+   Every pass contributes readings; readings that agree on a position are pooled
+   and the position most passes agree on wins. One cluster per position, not per
+   position-and-label: a reading that lost its label still corroborates the
+   digits. The label is then decided by majority of the readings that carried
+   one, so a single misread label cannot flip a position on its own. */
+async function ocrReadPhoto(img, onStatus){
   const worker = await ocrInit();
-  const passes = [
-    { generic: false, mk: async () => {     // OSD fast path: coordinate charset only, so no words survive for naming
-      const c = ocrGrayStretch(ocrCrop(imgEl, 0, 0, 1, 0.45, 2600));
-      await worker.setParameters({ tessedit_pageseg_mode: '6',
-        tessedit_char_whitelist: "0123456789.°'\"NSEWACFTGHMSL: m" });
-      return c;
-    } },
-    { generic: true, mk: async () => {
-      const c = ocrGrayStretch(ocrScaled(imgEl, imgEl.naturalWidth, imgEl.naturalHeight, 1800));
-      await worker.setParameters({ tessedit_pageseg_mode: '3', tessedit_char_whitelist: '' });
-      return c;
-    } },
-    { generic: true, mk: async () => {
-      const c = ocrGrayStretch(ocrCrop(imgEl, 0, 0, 1, 0.45, 2200));
-      await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
-      return c;
-    } },
-  ];
-  let best = null;
-  for (const p of passes){
-    const canvas = await p.mk();
-    const r = await worker.recognize(canvas);
-    const text = (r.data && r.data.text) || '';
-    const osd = extractOsd(text);
-    if (osd.tgt || osd.acft) return { ...osd, passText: text };
-    // anything the tool's own text scanner would find (decimal, DMS, MGRS, pins) counts too,
-    // but only from the unrestricted passes, whose text still carries the words around it
-    if (!best && p.generic && scanTextForCoords(ocrTextClean(text)).length)
-      best = { tgt: null, acft: null, generic: scanTextForCoords(ocrTextClean(text)), passText: text };
-  }
-  return best;
+  const say = onStatus || (() => {});
+  const f = osdFind(img);
+  const reads = []; let runs = 0;
+  const harvestText = (text, bi, li) => { runs++;
+    for (const line of ocrFix(text).split(/\n+/)){
+      const hits = scanTextForCoords(line);        // the tool's own parser — one reader, everywhere
+      if (!hits.length) continue;
+      const L = TGT_WORDS.test(line) ? 'TGT' : ACFT_WORDS.test(line) ? 'ACFT' : '';
+      for (const p of hits) reads.push({ lat: p.lat, lon: p.lon, tag: L, bi: bi, li: li,
+        hmsl: ocrHmsl(line), line: line.trim().replace(/^[^A-Za-z0-9]+/, '') }); } };
+  // A target two independent passes agree on is enough to stop on: the OSD is
+  // block one on every screen we have seen, and reading the rest of the picture
+  // costs time in the field it may not have.
+  const confident = () => { const seen = {};
+    for (const r of reads) if (r.tag && r.tag.indexOf('TGT') === 0){
+      const k = r.lat.toFixed(4) + ',' + r.lon.toFixed(4); seen[k] = (seen[k] || 0) + 1; }
+    return Object.keys(seen).some(k => seen[k] >= 2); };
+  const nb = Math.min(f.blocks.length, OCR_MAXBLOCKS);   // 0 on a picture with no text lines — the whole-frame pass below still runs
+  for (let bi = 0; bi < nb; bi++){
+    const b = f.blocks[bi], nl = Math.min(b.lines.length, OCR_MAXLINES);
+    await worker.setParameters({ tessedit_pageseg_mode: '7', tessedit_char_whitelist: '' });   // one line at a time
+    for (let li = 0; li < nl; li++) for (const h of OCR_HEIGHTS){
+      const cv = osdCrop(f.cv, b.lines[li].box, h);
+      if (cv.width < 30 || cv.width > 12000) continue;
+      say(`Reading the data strip… ${bi+1}.${li+1}`);
+      harvestText((await worker.recognize(cv)).data.text, bi, li); }
+    if (b.lines.length > 1){
+      await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });  // the block whole
+      // scaled per line, not per block: at a fixed 40 px a two-line block gives
+      // the recogniser 20 px of text and it starts inventing digits
+      const cv = osdCrop(f.cv, b.box, 40*b.lines.length);
+      if (cv.width > 30 && cv.width < 12000) harvestText((await worker.recognize(cv)).data.text, bi, null); }
+    osdInfer(reads);
+    if (confident()) break; }
+  if (!reads.some(r => r.tag)){
+    await worker.setParameters({ tessedit_pageseg_mode: '11', tessedit_char_whitelist: '' });
+    say('Reading the whole frame…');
+    const cv = osdCrop(f.cv, [0, 0, f.cv.width, f.cv.height], null);
+    harvestText((await worker.recognize(cv)).data.text, null, null); }
+  osdInfer(reads);
+  const near = (a,b) => Math.abs(a.lat - b.lat) < 0.001 && Math.abs(a.lon - b.lon) < 0.001;
+  const clusters = [];
+  for (const r of reads){ const c = clusters.find(c => near(c, r));
+    if (c){ c.n++; c.tally[r.tag] = (c.tally[r.tag] || 0) + 1; if (c.hmsl == null) c.hmsl = r.hmsl;
+      if (!c.lines.includes(r.line)) c.lines.push(r.line); }
+    else clusters.push({ lat: r.lat, lon: r.lon, n: 1, tally: { [r.tag]: 1 },
+      hmsl: r.hmsl, lines: [r.line], line: r.line, bi: r.bi }); }
+  for (const c of clusters){
+    const read = [], placed = [];
+    for (const k in c.tally){ if (!k) continue; (k.slice(-1) === '?' ? placed : read).push(k); }
+    const best = a => a.sort((x,y) => c.tally[y] - c.tally[x])[0];
+    c.tag = read.length ? best(read) : placed.length ? best(placed) : ''; }
+  /* Class first, then how many passes agree, and only then whether the label was
+     read or placed. Votes must beat a read label: a single pass that misread one
+     digit but did catch the word TGT would otherwise outrank three passes that
+     agree on the digits and knew the line only by its position — which is
+     exactly how a 7 became a 1, 650 km out, in the LZ tool's testing. */
+  const rank = c => { const t = c.tag || '';
+    const cls = t.indexOf('TGT') === 0 ? 3 : t.indexOf('ACFT') === 0 ? 0 : 2;
+    return cls*1e7 + c.n*10 + (t.slice(-1) === '?' ? 0 : 1); };
+  clusters.sort((a,b) => rank(b) - rank(a));
+  return { clusters: clusters, runs: runs, found: !!f.blocks.length, cv: f.cv,
+           block: f.blocks[0] ? f.blocks[0].box : null, angle: f.angle };
 }
 
 /* the flow: file in -> OCR -> confirm card (OSD) or Bulk paste review (anything else) */
+/* A browser can only decode what a browser can decode. Camera RAW and video
+   never load, and .HEIC opens on Safari but not on Chrome or Android. "Not an
+   image" tells a crew nothing about what to send instead, so each says what it
+   is and what would work. */
+const OCR_RAW_EXT = /\.(dng|cr2|cr3|nef|arw|raf|orf|rw2|srw|pef|3fr)$/i;
+const OCR_VID_EXT = /\.(mov|mp4|m4v|avi|mkv|hevc|3gp|webm)$/i;
+function ocrLoadImage(file){
+  const n = file.name || '';
+  if (OCR_RAW_EXT.test(n)) return Promise.reject(new Error(
+    'that is a camera RAW file — browsers cannot open RAW. Send the JPEG your phone saved beside it, or a screenshot of the screen'));
+  if (OCR_VID_EXT.test(n)) return Promise.reject(new Error(
+    'that is a video — take a screenshot of the frame you want and use that'));
+  return new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(u); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error(/\.(heic|heif)$/i.test(n)
+      ? 'this device cannot open .HEIC photos. On iPhone: Settings → Camera → Formats → Most Compatible, or share the photo as a JPEG'
+      : 'that file is not an image this browser can open')); };
+    im.src = u; });
+}
 let _ocrChain = Promise.resolve();
 function ocrReadImageFile(file){
   _ocrChain = _ocrChain.then(() => ocrReadImageFileNow(file)).catch(err => {
     console.error(err);
-    toast(`${file.name || 'image'}: could not read — ${(err && err.message) || err}`, 5000);
+    toast(`${file.name || 'image'}: could not read — ${(err && err.message) || err}`, 7000);
   });
   return _ocrChain;
 }
 async function ocrReadImageFileNow(file){
   if (!ocrSupported()){ toast('This browser cannot run the image reader — type the coordinates into Add a point instead.', 5200); return; }
-  const url = await fileToDataURL(file);
-  const img = new Image();
-  const ok = await new Promise(res => { img.onload = () => res(true); img.onerror = () => res(false); img.src = url; });
-  if (!ok){ toast('Could not read ' + (file.name || 'image') + ' as an image.'); return; }
-  toast(_ocrWorker ? 'Reading image…' : 'Reading image — first use starts the reader, give it a few seconds…', 6000);
-  const r = await ocrImageForCoords(img);
   const srcName = file.name || 'pasted image';
-  if (r && (r.tgt || r.acft)){
-    const thumb = ocrCrop(img, 0, 0, 1, 0.45, 640).toDataURL('image/jpeg', 0.82);
-    showOsdModal(r, thumb, srcName);
-  } else if (r && r.generic.length){
-    importScannedText(ocrTextClean(r.passText), srcName + ' (read on this device)');
-  } else {
-    toast('No coordinates read from ' + srcName + ' — nothing added. A sharper, straighter photo of the screen usually reads.', 5600);
+  const img = await ocrLoadImage(file);
+  toast(_ocrWorker ? 'Reading image…' : 'Reading image — first use starts the reader, give it a few seconds…', 6000);
+  const r = await ocrReadPhoto(img, m => toast(m, 4000));
+  const cs = r.clusters;
+  // every line that was read goes into the bulk box, so what the reader saw can
+  // be checked and edited by hand whichever way this lands
+  if (cs.length){
+    const seen = [];
+    cs.forEach(c => c.lines.forEach(l => { if (l && !seen.includes(l)) seen.push(l); }));
+    if (seen.length) document.getElementById('bulkText').value = seen.join('\n');
   }
+  const best = cs[0];
+  if (best && best.tag){
+    const thumb = osdCrop(r.cv, r.block || [0, 0, r.cv.width, r.cv.height], null).toDataURL('image/jpeg', 0.82);
+    showOsdModal(r, srcName, thumb);
+    return;
+  }
+  if (cs.length){   // coordinates, but not off a ground-station banner — the ordinary scan reviews them
+    importScannedText(cs.map(c => c.line).join('\n'), srcName + ' (read on this device)');
+    return;
+  }
+  toast(r.found
+    ? 'Text was found on ' + srcName + ' but no coordinate could be read from it — nothing added. A straighter, closer shot of the data strip usually reads.'
+    : 'No coordinates read from ' + srcName + ' — nothing added. Fill more of the frame with the screen and try again.', 6500);
 }
 
-/* OSD confirm card */
+/* OSD confirm card — the pixels that were read, beside the grid they parsed to,
+   with how many passes agreed and how the label was decided. Nothing is plotted
+   until this is accepted. */
 let _osdPending = null;
-function showOsdModal(r, thumbUrl, srcName){
-  _osdPending = { r, srcName };
-  const prim = r.tgt || r.acft;
-  const primLabel = r.tgt ? 'TGT' : 'ACFT';
-  document.getElementById('osdTitle').textContent = (r.tgt ? 'Target read from ' : 'Aircraft position read from ') + srcName;
+function osdIsAcft(t){ return String(t || '').indexOf('ACFT') === 0; }
+function osdIsTgt(t){ return String(t || '').indexOf('TGT') === 0; }
+function showOsdModal(r, srcName, thumbUrl){
+  const cs = r.clusters, prim = cs[0];
+  _osdPending = { r, srcName, prim };
+  const placed = prim.tag.slice(-1) === '?';
+  const primLabel = osdIsTgt(prim.tag) ? 'TGT' : 'ACFT';
+  document.getElementById('osdTitle').textContent =
+    (osdIsTgt(prim.tag) ? 'Target read from ' : 'Aircraft position read from ') + srcName;
   document.getElementById('osdThumb').src = thumbUrl;
   const rows = [];
   rows.push(`<b>${primLabel}</b> ${esc(toDMSstr(prim.lat, prim.lon))}${prim.hmsl != null ? ' · HMSL ' + prim.hmsl + ' m' : ''}`);
   rows.push(`<span style="color:var(--ink-3)">read as: ${esc(prim.line)}</span>`);
-  if (r.tgt && r.acft)
-    rows.push(`<span style="color:var(--ink-3)">ACFT ${esc(toDMSstr(r.acft.lat, r.acft.lon))}${r.acft.hmsl != null ? ' · HMSL ' + r.acft.hmsl + ' m' : ''}</span>`);
+  rows.push(`<span style="color:var(--ink-3)">${prim.n} of ${r.runs} pass${r.runs === 1 ? '' : 'es'} agree${
+    placed ? ' · label placed by its position in the block — the word itself did not read' : ''} — check the digits against the screen</span>`);
+  const acft = cs.find(c => osdIsAcft(c.tag));
+  if (osdIsTgt(prim.tag) && acft)
+    rows.push(`<span style="color:var(--ink-3)">ACFT ${esc(toDMSstr(acft.lat, acft.lon))}${acft.hmsl != null ? ' · HMSL ' + acft.hmsl + ' m' : ''}</span>`);
+  if (!osdIsTgt(prim.tag))
+    rows.push(`<span style="color:#b3261e">No target line could be read — this is the aircraft's own position.</span>`);
+  const others = cs.filter(c => c !== prim && c !== acft).length;
+  if (others) rows.push(`<span style="color:var(--ink-3)">${others} other coordinate${others === 1 ? '' : 's'} read — every line is in Bulk paste to check.</span>`);
   document.getElementById('osdReadout').innerHTML = rows.join('<br>');
   document.getElementById('osdName').value = primLabel;
   const sel = document.getElementById('osdLayer');
@@ -2520,7 +2883,7 @@ function showOsdModal(r, thumbUrl, srcName){
   const cur = document.getElementById('addLayer').value;
   if (LYBY[cur]) sel.value = cur;
   const wrap = document.getElementById('osdAcftWrap');
-  wrap.style.display = (r.tgt && r.acft) ? 'block' : 'none';
+  wrap.style.display = (osdIsTgt(prim.tag) && acft) ? 'block' : 'none';
   document.getElementById('osdAcft').checked = false;
   document.getElementById('osdModal').style.display = 'flex';
   setTimeout(() => document.getElementById('osdName').select(), 60);
@@ -2529,25 +2892,28 @@ function osdFinish(create){
   document.getElementById('osdModal').style.display = 'none';
   const p = _osdPending; _osdPending = null;
   if (!p || !create) return;
-  const { r, srcName } = p;
-  const prim = r.tgt || r.acft;
-  const primLabel = r.tgt ? 'TGT' : 'ACFT';
+  const { r, srcName, prim } = p;
+  const placed = prim.tag.slice(-1) === '?';
+  const primLabel = osdIsTgt(prim.tag) ? 'TGT' : 'ACFT';
   const layerKey = document.getElementById('osdLayer').value;
   const aff = document.getElementById('addAff').value, role = document.getElementById('addRole').value;
   const name = document.getElementById('osdName').value.trim() || primLabel;
+  const acft = r.clusters.find(c => osdIsAcft(c.tag));
   const rec = addPoint(prim.lat, prim.lon, name, aff, role, layerKey, true);
   if (rec){
     let note = `Read off ${srcName} on this device. ${primLabel} line: ${prim.line}`;
     if (prim.hmsl != null) note += ` (HMSL ${prim.hmsl} m)`;
-    if (r.tgt && r.acft) note += `. ACFT was at ${toDMSstr(r.acft.lat, r.acft.lon)}${r.acft.hmsl != null ? ', HMSL ' + r.acft.hmsl + ' m' : ''}`;
+    note += `. ${prim.n} of ${r.runs} OCR passes agree`;
+    if (placed) note += `; the ${primLabel} label was placed by its position in the block, not read`;
+    if (osdIsTgt(prim.tag) && acft) note += `. ACFT was at ${toDMSstr(acft.lat, acft.lon)}${acft.hmsl != null ? ', HMSL ' + acft.hmsl + ' m' : ''}`;
     rec.pt.notes = note.slice(0, 500);
     refreshPopup(rec.pt.uid); scheduleAutosave();
   }
-  if (r.tgt && r.acft && document.getElementById('osdAcft').checked){
-    const rec2 = addPoint(r.acft.lat, r.acft.lon, name + ' ACFT', aff, role, layerKey, false);
+  if (osdIsTgt(prim.tag) && acft && document.getElementById('osdAcft').checked){
+    const rec2 = addPoint(acft.lat, acft.lon, name + ' ACFT', aff, role, layerKey, false);
     if (rec2){
-      rec2.pt.notes = (`Read off ${srcName} on this device. ACFT line: ${r.acft.line}` +
-        (r.acft.hmsl != null ? ` (HMSL ${r.acft.hmsl} m)` : '')).slice(0, 500);
+      rec2.pt.notes = (`Read off ${srcName} on this device. ACFT line: ${acft.line}` +
+        (acft.hmsl != null ? ` (HMSL ${acft.hmsl} m)` : '')).slice(0, 500);
       refreshPopup(rec2.pt.uid); scheduleAutosave();
     }
   }
