@@ -1,0 +1,16 @@
+{
+  "name": "PED tool (beta)",
+  "short_name": "PED beta",
+  "description": "PED tool, RBM Global branding — beta layout. Plan an operation on a map and export TAK data packages.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#15151d",
+  "theme_color": "#2c2c3a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
