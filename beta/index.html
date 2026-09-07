@@ -6107,6 +6107,30 @@ refreshSelUI();
     if (t !== 'INPUT' && t !== 'TEXTAREA' && t !== 'SELECT') show(null);
   });
 
+  /* The tool opens a section on its own when it has something to show you — a scan
+     preview after a dropped file, for one. In the live layout that was enough, because
+     every section was on screen. Here it is not: if that section's group is not the one
+     showing, the result would land somewhere you cannot see. So watch for a section
+     being opened and bring its group forward. */
+  var byId = {};
+  Object.keys(MENUS).forEach(function(m){
+    if (m === 'all') return;
+    MENUS[m].forEach(function(id){ byId[id] = m; });
+  });
+  var settling = false;
+  new MutationObserver(function(recs){
+    if (settling) return;
+    for (var i = 0; i < recs.length; i++){
+      var d = recs[i].target;
+      if (!d.open || !d.classList.contains('sec')) continue;
+      if (d.classList.contains('rbm-on')) continue;          // already on screen
+      var m = byId[d.id];
+      if (m){ settling = true; show(m); settling = false; }
+      break;
+    }
+  }).observe(document.getElementById('panel'),
+             { attributes: true, attributeFilter: ['open'], subtree: true });
+
   /* icon rail — each button is a shortcut to a control that already exists */
   var ACT = { fit:'fitBtn', table:'tblBtn', pick:'pickBtn', poly:'drawPolyBtn',
               circ:'drawCircBtn', box:'boxSelBtn', read:'readImgBtn' };
