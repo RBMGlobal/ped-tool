@@ -460,82 +460,136 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
 }
 </style>
 <style id="ipb-style">
-/* ---- IPB overlay section ------------------------------------------------------------ */
-#ipbSteps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 4px; }
-#ipbSteps button { font: inherit; font-size: 12px; font-weight: 700; padding: 6px 4px; border: 1px solid var(--border); border-radius: 6px;
-  background: transparent; color: var(--ink-2); cursor: pointer; }
+/* ---- IPE section: guided checklist ---------------------------------------------------- */
+#ipbSteps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }
+#ipbSteps button { font: inherit; padding: 6px 2px 5px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--ink-2);
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 1px; position: relative; }
+#ipbSteps button b { font-size: 15px; line-height: 1; }
+#ipbSteps button span { font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
 #ipbSteps button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-#ipbStepName { font-family: var(--title-face, inherit); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--muted); margin: 10px 0 6px; }
-#ipbSearch { width: 100%; padding: 6px 9px; font: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--page); color: var(--ink-1); margin: 4px 0 6px; }
+#ipbSteps button.has::after { content: ''; position: absolute; top: 4px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #3cb371; }
+#ipbSteps button.on.has::after { background: #fff; }
+#ipbStepTitle { font-family: var(--title-face, inherit); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-1); margin: 12px 0 2px; }
+#ipbStepBlurb { margin-top: 0 !important; }
+/* the checklist */
+.ipb-ck { margin-top: 8px; }
+.ipb-ck-h { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
+.ipb-row-ck { border: 1px solid var(--border); border-radius: 9px; margin-top: 5px; overflow: hidden; }
+.ipb-row-ck.has { border-color: color-mix(in srgb, #3cb371 55%, var(--border)); }
+.ipb-ck-top { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 9px; }
+.ipb-ck-tick { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--border); flex: none; display: grid; place-items: center; font-size: 12px; color: #fff; }
+.has .ipb-ck-tick { background: #3cb371; border-color: #3cb371; }
+.ipb-ck-txt { flex: 1; min-width: 0; }
+.ipb-ck-n { font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--ink-1); }
+.ipb-ck-h2 { font-size: 11px; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+.ipb-ck-cnt { font-size: 11px; color: var(--muted); flex: none; }
+.ipb-ck-add { font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; flex: none; }
+.ipb-ck-add:hover { background: var(--accent); color: #fff; }
+.ipb-ck-selrow { padding: 0 8px 7px 37px; }
+.ipb-ck-sel { width: 100%; font: inherit; font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--ink-1); }
+.ipb-ck-items { border-top: 1px solid var(--hairline, var(--border)); padding: 3px 6px 4px 36px; }
+.ipb-it { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 2px; border-radius: 5px; }
+.ipb-it:hover { background: color-mix(in srgb, var(--ink-1) 6%, transparent); }
+.ipb-it-t { flex: 1; color: var(--ink-1); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ipb-it-t:hover { text-decoration: underline; }
+.ipb-it button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; padding: 2px 5px; border-radius: 4px; }
+.ipb-it button:hover { color: var(--ink-1); background: color-mix(in srgb, var(--ink-1) 10%, transparent); }
+.ipb-it button.ipb-it-del:hover { color: #d03b3b; background: color-mix(in srgb, #d03b3b 12%, transparent); }
+/* placing prompt */
+#ipbPlacing { margin-top: 10px; border: 1.5px solid var(--accent); border-radius: 10px; padding: 10px 12px; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.ipb-placing-what { font-size: 13px; color: var(--ink-2); }
+.ipb-placing-what b { color: var(--ink-1); font-size: 14px; }
+.ipb-placing-how { font-size: 13px; margin-top: 6px; line-height: 1.4; color: var(--ink-1); }
+.ipb-placing-count { font-size: 12px; margin-top: 6px; color: var(--muted); }
+.ipb-placing-btns { display: flex; gap: 6px; margin-top: 10px; }
+.ipb-placing-btns button { flex: 1; font: inherit; font-size: 13px; font-weight: 600; padding: 8px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--ink-1); cursor: pointer; }
+#ipbPlacingFinish:not(:disabled) { background: var(--accent); border-color: var(--accent); color: #fff; }
+#ipbPlacingFinish:disabled { opacity: .5; cursor: not-allowed; }
+/* COA tabs (step 4) */
+#ipbCoaBar { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; align-items: center; }
+#ipbCoaBar button { font: inherit; font-size: 12px; padding: 5px 10px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--ink-1); cursor: pointer; }
+#ipbCoaBar button.on { background: var(--ink-1); color: var(--surface-1); border-color: var(--ink-1); }
+#ipbCoaBar button.ipb-coa-add { border-style: dashed; color: var(--muted); }
+/* step extras: helpers, tables, products */
+.ipb-help { border: 1px solid var(--border); border-radius: 9px; padding: 8px 9px; font-size: 12px; margin-top: 5px; }
+.ipb-help-row { display: flex; gap: 6px; margin-top: 5px; align-items: flex-end; }
+.ipb-help-row label { flex: 1; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.ipb-help-row input { width: 100%; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--ink-1); }
+.ipb-help select { width: 100%; font: inherit; font-size: 12.5px; padding: 5px 6px; margin-top: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--ink-1); }
+.ipb-help .ipb-go { font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--accent); background: transparent; color: var(--accent); cursor: pointer; flex: none; }
+.ipb-help .ipb-go:hover { background: var(--accent); color: #fff; }
+.ipb-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px; }
+.ipb-grid2 button, .ipb-wide { font: inherit; font-size: 12.5px; padding: 8px 8px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--ink-1); cursor: pointer; text-align: center; }
+.ipb-grid2 button:hover, .ipb-wide:hover { background: color-mix(in srgb, var(--ink-1) 6%, transparent); }
+.ipb-wide { display: block; width: 100%; margin-top: 5px; }
+/* products (step 5) */
+.ipb-prod { border: 1px solid var(--border); border-radius: 9px; padding: 7px 8px; margin-top: 6px; }
+.ipb-prod-top { display: flex; align-items: center; gap: 7px; }
+.ipb-prod-top input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+.ipb-prod-name { flex: 1; font: inherit; font-weight: 600; font-size: 13px; background: transparent; border: 1px solid transparent; border-radius: 5px; padding: 2px 4px; color: var(--ink-1); min-width: 0; }
+.ipb-prod-name:hover { border-color: var(--border); }
+.ipb-prod-name:focus { border-color: var(--ink-2); outline: none; }
+.ipb-prod-meta { font-size: 11px; color: var(--muted); margin: 2px 0 0 22px; }
+.ipb-prod-btns { display: flex; gap: 5px; margin-top: 6px; }
+.ipb-prod-btns button { flex: 1; font: inherit; font-size: 11.5px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--ink-1); cursor: pointer; }
+.ipb-prod-btns button:hover { background: color-mix(in srgb, var(--ink-1) 6%, transparent); }
+.ipb-prod-btns .ipb-del { flex: 0 0 auto; }
+.ipb-prod-btns .ipb-del:hover { color: #d03b3b; border-color: #d03b3b; }
+.ipb-ovmove { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; padding: 0 3px; line-height: 1; }
+.ipb-ovmove:hover { color: var(--ink-1); }
+/* the catalogue drawer */
+.ipb-more { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 6px; }
+.ipb-more > summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+#ipbSearch { width: 100%; padding: 6px 9px; font: inherit; font-size: 13px; border: 1px solid var(--border); border-radius: 8px; background: var(--page); color: var(--ink-1); margin: 6px 0; }
 #ipbPick { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-.ipb-pick { text-align: left; font: inherit; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: transparent;
-  color: var(--ink-1); cursor: pointer; display: flex; flex-direction: column; gap: 1px; min-height: 40px; }
+.ipb-pick { text-align: left; font: inherit; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--ink-1); cursor: pointer; display: flex; flex-direction: column; gap: 1px; min-height: 40px; }
 .ipb-pick:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: var(--accent); }
 .ipb-pick-n { font-size: 12.5px; font-weight: 600; line-height: 1.25; }
 .ipb-pick-h { font-size: 10.5px; color: var(--muted); line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .ipb-pick-x { border-style: dashed; }
-#ipbOverlays { margin-top: 6px; }
-.ipb-ov { border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin-top: 6px; }
-.ipb-ov.on { border-color: var(--accent); }
-.ipb-ov-top { display: flex; align-items: center; gap: 7px; cursor: default; }
-.ipb-ov-top input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
-.ipb-ov-name { flex: 1; font: inherit; font-weight: 600; font-size: 13px; background: transparent; border: 1px solid transparent; border-radius: 5px;
-  padding: 2px 4px; color: var(--ink-1); min-width: 0; }
-.ipb-ov-name:hover { border-color: var(--border); }
-.ipb-ov-name:focus { border-color: var(--ink-2); outline: none; }
-.ipb-ov-items { margin: 4px 0 2px; }
-.ipb-it { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 2px 2px 22px; border-radius: 5px; }
-.ipb-it:hover { background: color-mix(in srgb, var(--ink-1) 6%, transparent); }
-.ipb-it-n { font-weight: 700; min-width: 3.5em; cursor: pointer; }
-.ipb-it-t { flex: 1; color: var(--ink-2); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ipb-it button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; padding: 1px 4px; border-radius: 4px; }
-.ipb-it button:hover { color: #d03b3b; background: color-mix(in srgb, #d03b3b 12%, transparent); }
-.ipb-ov-btns { display: flex; gap: 5px; margin-top: 4px; }
-.ipb-ov-btns button { flex: 1; font: inherit; font-size: 11.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px;
-  background: transparent; color: var(--ink-1); cursor: pointer; }
-.ipb-ov-btns button:hover { background: color-mix(in srgb, var(--ink-1) 6%, transparent); }
-.ipb-ov-btns .ipb-del { flex: 0 0 auto; }
-.ipb-ov-btns .ipb-del:hover { color: #d03b3b; border-color: #d03b3b; }
 /* ---- on the map */
 .ipb-lbl { font: 700 11px/1 Arial, Helvetica, sans-serif; color: #111; background: rgba(255,255,255,.78); padding: 1px 3px; border-radius: 2px;
   white-space: nowrap; pointer-events: none; transform: translate(-50%, -50%); width: max-content !important; }
 .ipb-sym { background: transparent; border: 0; }
 .ipb-sym svg { display: block; }
 .leaflet-container.ipb-drawing { cursor: crosshair; }
-#ipbDrawBar { display: none; position: absolute; z-index: 1250; left: 50%; top: 12px; transform: translateX(-50%); gap: 8px; }
+#ipbDrawBar { display: none; position: absolute; z-index: 1250; left: 50%; top: 12px; transform: translateX(-50%); gap: 8px; align-items: center; }
+#ipbDrawBar span { font-size: 12.5px; color: var(--ink-1); background: var(--surface-1); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,.25); white-space: nowrap; }
 #ipbDrawBar button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border);
   background: var(--surface-1); color: var(--ink-1); cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
 #ipbDrawBar button:disabled { opacity: .55; cursor: not-allowed; }
 #ipbDrawFinish:not(:disabled) { background: var(--accent); color: #fff; border-color: var(--accent); }
-/* ---- properties card */
-#ipbProps { display: none; position: fixed; inset: 0; z-index: 3200; background: rgba(10,12,16,.45); align-items: center; justify-content: center; }
-#ipbProps .destcard { width: min(460px, 94vw); }
-#ipbProps label { display: block; font-size: 12px; color: var(--ink-2); margin-top: 8px; }
-#ipbProps input[type=text], #ipbProps select, #ipbProps textarea { width: 100%; margin-top: 3px; font: inherit; font-size: 13px; padding: 6px 8px;
-  border: 1px solid var(--border); border-radius: 7px; background: var(--page); color: var(--ink-1); }
+@media (max-width: 720px) { #ipbDrawBar span { display: none; } }
+/* ---- cards: the edit card and the tables */
+#ipbProps, #ipbTable { display: none; position: fixed; inset: 0; z-index: 3200; background: rgba(10,12,16,.5); align-items: center; justify-content: center; }
+.ipb-card { background: var(--surface-1); color: var(--ink-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 14px 44px rgba(0,0,0,.4);
+  padding: 14px 16px 12px; width: min(440px, calc(100vw - 28px)); max-height: 92vh; overflow: auto; box-sizing: border-box; }
+.ipb-card-title { font-family: var(--title-face, inherit); font-size: 15px; font-weight: 700; }
+.ipb-card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+#ipbProps label { display: block; font-size: 12px; color: var(--ink-2); margin-top: 9px; }
+#ipbProps input[type=text], #ipbProps select, #ipbProps textarea { width: 100%; margin-top: 3px; font: inherit; font-size: 13px; padding: 7px 9px;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--page); color: var(--ink-1); box-sizing: border-box; }
 #ipbProps textarea { min-height: 56px; resize: vertical; }
 #ipbProps .ipb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-#ipbP_code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); margin-top: 8px; }
-/* ---- phase 2/3 */
-.ipb-help { border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; font-size: 12px; margin-top: 4px; }
-.ipb-help-row { display: flex; gap: 6px; margin-top: 5px; align-items: flex-end; }
-.ipb-help-row label { flex: 1; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
-.ipb-help-row input { width: 100%; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--ink-1); }
-#ipbTable { display: none; position: fixed; inset: 0; z-index: 3200; background: rgba(10,12,16,.45); align-items: center; justify-content: center; }
+#ipbP_code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 10.5px; color: var(--muted); margin-top: 10px; }
+.ipb-card-btns { display: flex; gap: 6px; margin-top: 14px; align-items: center; }
+.ipb-card-gap { flex: 1; }
+.ipb-btn, .ipb-btn-del { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--ink-1); cursor: pointer; }
+.ipb-btn:hover { background: color-mix(in srgb, var(--ink-1) 7%, transparent); }
+.ipb-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ipb-btn-primary:hover { filter: brightness(1.08); }
+.ipb-btn-del { border-color: #b3261e; color: #b3261e; }
+.ipb-btn-del:hover, .ipb-btn-del.armed { background: #b3261e; color: #fff; }
 #ipbTable .ipb-tablecard { width: min(1100px, 96vw); max-height: 90vh; display: flex; flex-direction: column; }
-.ipb-tablewrap { overflow: auto; flex: 1; min-height: 120px; margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; }
+.ipb-tablewrap { overflow: auto; flex: 1; min-height: 120px; margin: 8px 0 0; border: 1px solid var(--border); border-radius: 8px; }
 .ipb-tablewrap table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .ipb-tablewrap th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
-.ipb-tablewrap td { padding: 3px 4px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.ipb-tablewrap td { padding: 3px 4px; border-bottom: 1px solid var(--hairline, var(--border)); vertical-align: top; }
 .ipb-tablewrap td input, .ipb-tablewrap td select { width: 100%; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--ink-1); }
 .ipb-tablewrap td input:hover, .ipb-tablewrap td select:hover { border-color: var(--border); }
 .ipb-tablewrap td input:focus, .ipb-tablewrap td select:focus { border-color: var(--accent); outline: none; background: var(--page); }
 .ipb-t-del { width: 28px; } .ipb-t-del button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .ipb-t-del button:hover { color: #d03b3b; }
-.ipb-ovmove { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; padding: 0 3px; line-height: 1; }
-.ipb-ovmove:hover { color: var(--ink-1); }
 </style>
 <body>
 <header>
@@ -555,7 +609,7 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
   <button class="rbm-mbtn" data-menu="layers" aria-expanded="false">Layers</button>
   <button class="rbm-mbtn" data-menu="tools" aria-expanded="false">Tools</button>
   <button class="rbm-mbtn" data-menu="export" aria-expanded="false">Export</button>
-  <button class="rbm-mbtn" data-menu="ipb" aria-expanded="false" title="Intelligence preparation of the environment — APP-6D overlays">IPB</button>
+  <button class="rbm-mbtn" data-menu="ipb" aria-expanded="false" title="Intelligence preparation of the environment — Question 1 of the estimate, drawn to APP-6D">IPE</button>
   <span class="rbm-navgrow"></span>
   <button class="rbm-mbtn" data-menu="base" aria-expanded="false">Base</button>
   <button class="rbm-mbtn plain" data-menu="all" aria-expanded="false" title="Show every panel in one scrolling column, the way the tool was laid out before">All</button>
@@ -724,51 +778,31 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
     </details>
 
     <details class="sec" id="sec-ipb" open>
-    <summary>IPB overlay</summary>
-    <div class="addhint" style="margin-top:0">NATO APP-6D graphics for intelligence preparation of the environment. Pick a step, pick a graphic, click it onto the map; each one is a real symbol that redraws at every zoom. Nothing here leaves the device.</div>
+    <summary>IPE — Question 1</summary>
+    <div class="addhint" style="margin-top:0"><b>What is the situation and how does it affect me?</b> Four steps, each listing what goes on the map at that point. Tap an item, click it onto the map; it is named for you. Tap any graphic to rename, edit or delete it. Nothing here leaves the device.</div>
     <div id="ipbSteps">
-      <button type="button" data-s="1" title="Define the operational environment — AO, AI, boundaries">1 Define</button>
-      <button type="button" data-s="2" class="on" title="Describe environmental effects — MCOO, obstacles, avenues of approach, key terrain">2 Describe</button>
-      <button type="button" data-s="3" title="Evaluate the threat — threat template">3 Evaluate</button>
-      <button type="button" data-s="4" title="Determine threat courses of action — situation and event templates">4 COAs</button>
+      <button type="button" data-s="1"><b>1</b><span>Define</span></button>
+      <button type="button" data-s="2"><b>2</b><span>Describe</span></button>
+      <button type="button" data-s="3"><b>3</b><span>Enemy</span></button>
+      <button type="button" data-s="4"><b>4</b><span>COAs</span></button>
+      <button type="button" data-s="5"><b>5</b><span>Products</span></button>
     </div>
-    <div id="ipbStepName">Describe its effects</div>
-    <input id="ipbSearch" type="search" placeholder="Search the whole APP-6D catalogue…" autocomplete="off" spellcheck="false">
-    <div id="ipbPick"></div>
-    <div class="subhead" style="display:flex;align-items:center;gap:8px">Overlays for this step <button type="button" id="ipbNewOv" class="lydel" style="font-size:12px;margin-left:auto" title="Add another overlay for this step — a second COA, for instance">+ New overlay</button></div>
+    <div id="ipbStepTitle"></div>
+    <div id="ipbStepBlurb" class="addhint"></div>
+    <div id="ipbPlacing" hidden>
+      <div class="ipb-placing-what">Placing <b id="ipbPlacingName"></b></div>
+      <div class="ipb-placing-how" id="ipbPlacingHow"></div>
+      <div class="ipb-placing-count" id="ipbPlacingCount"></div>
+      <div class="ipb-placing-btns"><button type="button" id="ipbPlacingFinish" disabled>Finish</button><button type="button" id="ipbPlacingCancel">Cancel</button></div>
+    </div>
+    <div id="ipbCoaBar" hidden></div>
     <div id="ipbOverlays"></div>
-    <div class="subhead">Staff tables</div>
-    <div id="ipbTables" class="basemap-row bm-grid">
-      <button type="button" data-t="event" title="NAIs, indicators, time windows, the DP each one feeds">Event matrix</button>
-      <button type="button" data-t="dsm" title="Decision points, triggers, the NAI/TAI they watch, the action">Decision support</button>
-      <button type="button" data-t="terrain" title="Terrain features and their effect on threat and friendly operations">Terrain effects</button>
-      <button type="button" data-t="weather" title="Conditions, periods, effects on threat, friendly and sensors">Weather effects</button>
-    </div>
-    <div class="subhead">Brief</div>
-    <div class="basemap-row">
-      <button type="button" id="ipbAcetate" title="Everything visible as an overlay sheet: register marks with grid references, scale bar, title block, legend — PNG">Overlay sheet (PNG)</button>
-      <button type="button" id="ipbBrief" title="A printable page: the sheet and every filled-in table — print to PDF">Print brief</button>
-    </div>
-    <div class="subhead">Helpers — data, not decisions</div>
-    <div class="ipb-help">
-      <b>Time-phase lines</b> along an axis
-      <select id="ipbTplAxis" class="bulksel"><option value="">— draw an axis or line first —</option></select>
-      <div class="ipb-help-row">
-        <label>km/h <input id="ipbTplRate" type="number" value="20" min="1" step="1"></label>
-        <label>every h <input id="ipbTplEvery" type="number" value="1" min="0.25" step="0.25"></label>
-        <label>line km <input id="ipbTplLen" type="number" value="2" min="0.2" step="0.5"></label>
-      </div>
-      <div class="ipb-help-row"><label style="flex:1">start DTG <input id="ipbTplStart" type="text" placeholder="140600ZSEP26 (optional)" autocomplete="off" spellcheck="false"></label><button type="button" id="ipbTplGo" class="toolbtn" style="margin:0;flex:none;width:auto">Place lines</button></div>
-      <div class="addhint" style="margin-top:2px">Phase lines are placed perpendicular to the axis at rate × interval, labelled TPL +1 h, +2 h… or with the DTG if you give a start. The rate is yours — ATP 2-01.3 appendix B has planning figures by terrain.</div>
-      <b style="display:block;margin-top:8px">Slope bands</b> — thresholds (%) for the shading
-      <div class="ipb-help-row">
-        <label>band 1 <input id="ipbSlope1" type="number" value="10" min="0" step="1"></label>
-        <label>band 2 <input id="ipbSlope2" type="number" value="30" min="0" step="1"></label>
-        <label>band 3 <input id="ipbSlope3" type="number" value="45" min="0" step="1"></label>
-      </div>
-      <div class="addhint" style="margin-top:2px">Pick <i>Slope bands</i> under step 2 and draw a box. 576 elevation samples from the same service as the elevation profile (declared in Help &amp; OPSEC); yellow, orange and red above each threshold. Intervisibility is there too: observer, then target.</div>
-    </div>
-    <div class="addhint">Each overlay exports on its own: <b>TAK</b> gives a data package where lines and areas are the doctrinal strokes as drawings, point symbols are spot markers with the APP-6 icon attached, and threat units are proper CoT unit types. <b>KML</b> carries the same geometry for GRG overlays. Both bake arrowheads at the zoom you export at.</div>
+    <div id="ipbStepExtra"></div>
+    <details class="ipb-more" id="ipbMore">
+      <summary>Something else — the full APP-6D catalogue</summary>
+      <input id="ipbSearch" type="search" placeholder="Type part of a name: “bridge”, “mortar”, “screen”…" autocomplete="off" spellcheck="false">
+      <div id="ipbPick"></div>
+    </details>
     </details>
 
     <details class="sec" id="sec-help">
@@ -908,40 +942,43 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
         <button data-act="read" title="Read coordinates off a drone screen or screenshot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="1.6"/><path d="M3.5 15.5l4.2-3.8 3.6 3 3-2.6 6.2 5"/><circle cx="9" cy="9.3" r="1.4"/></svg></button>
       </div>
     </div>
-    <div id="ipbDrawBar"><button type="button" id="ipbDrawFinish" disabled>Finish</button><button type="button" id="ipbDrawCancel">✕ Cancel</button></div>
+    <div id="ipbDrawBar"><span id="ipbDrawBarText"></span><button type="button" id="ipbDrawFinish" disabled>Finish</button><button type="button" id="ipbDrawCancel">✕ Cancel</button></div>
     <div id="ipbProps">
-      <div class="destcard">
-        <div class="dest-title" id="ipbPropsTitle">Graphic</div>
+      <div class="ipb-card">
+        <div class="ipb-card-title" id="ipbPropsTitle">Graphic</div>
+        <div class="ipb-card-sub" id="ipbPropsSub"></div>
         <div class="ipb-row">
-          <label>Designation <input id="ipbP_Tin" type="text" autocomplete="off" spellcheck="false" placeholder="just the number for NAI, TAI, PL, OBJ, EA, DP — the symbol adds its own prefix"></label>
-          <label id="ipbP_T1">Second designation <input id="ipbP_T1in" type="text" autocomplete="off" spellcheck="false" placeholder="unit on the other side"></label>
+          <label><span id="ipbP_Tlabel">Name</span> <input id="ipbP_Tin" type="text" autocomplete="off" spellcheck="false"></label>
+          <label id="ipbP_T1">Unit on the other side <input id="ipbP_T1in" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. 2 PARA"></label>
         </div>
         <div class="ipb-row">
           <label id="ipbP_W">From (DTG) <input id="ipbP_Win" type="text" autocomplete="off" spellcheck="false" placeholder="140600ZSEP26"></label>
           <label id="ipbP_W1">To (DTG) <input id="ipbP_W1in" type="text" autocomplete="off" spellcheck="false" placeholder="141800ZSEP26"></label>
         </div>
         <div class="ipb-row">
-          <label id="ipbP_aff">Affiliation <select id="ipbP_affin"><option value="06">Hostile</option><option value="03">Friend</option><option value="04">Neutral</option><option value="01">Unknown</option><option value="05">Suspect</option></select></label>
-          <label id="ipbP_ech">Echelon <select id="ipbP_echin"><option value="00">—</option><option value="11">Team</option><option value="12">Squad</option><option value="13">Section</option><option value="14">Platoon</option><option value="15">Company</option><option value="16">Battalion</option><option value="17">Regiment</option><option value="18">Brigade</option></select></label>
+          <label id="ipbP_aff">Whose <select id="ipbP_affin"><option value="06">Enemy</option><option value="03">Friendly</option><option value="04">Neutral</option><option value="01">Unknown</option><option value="05">Suspect</option></select></label>
+          <label id="ipbP_ech">Size <select id="ipbP_echin"><option value="00">—</option><option value="11">Team</option><option value="12">Squad</option><option value="13">Section</option><option value="14">Platoon</option><option value="15">Company</option><option value="16">Battalion</option><option value="17">Regiment</option><option value="18">Brigade</option></select></label>
         </div>
-        <label>Overlay <select id="ipbP_ov"></select></label>
-        <label>Notes → TAK remarks <textarea id="ipbP_notes" spellcheck="true"></textarea></label>
+        <label id="ipbP_ovl">Belongs to <select id="ipbP_ov"></select></label>
+        <label>Notes (go to ATAK as remarks) <textarea id="ipbP_notes" spellcheck="true"></textarea></label>
         <div id="ipbP_code"></div>
-        <div class="dest-btns">
-          <button class="toolbtn danger" id="ipbP_del" type="button">Delete</button>
-          <button class="toolbtn" id="ipbP_cancel" type="button">Cancel</button>
-          <button class="toolbtn primary" id="ipbP_ok" type="button">OK</button>
+        <div class="ipb-card-btns">
+          <button class="ipb-btn-del" id="ipbP_del" type="button">Delete</button>
+          <span class="ipb-card-gap"></span>
+          <button class="ipb-btn" id="ipbP_cancel" type="button">Cancel</button>
+          <button class="ipb-btn ipb-btn-primary" id="ipbP_ok" type="button">Done</button>
         </div>
       </div>
     </div>
     <div id="ipbTable">
-      <div class="destcard ipb-tablecard">
-        <div class="dest-title" id="ipbTableTitle">Table</div>
+      <div class="ipb-card ipb-tablecard">
+        <div class="ipb-card-title" id="ipbTableTitle">Table</div>
         <div class="ipb-tablewrap"><table><thead id="ipbTableHead"></thead><tbody id="ipbTableBody"></tbody></table></div>
-        <div class="dest-btns">
-          <button class="toolbtn" id="ipbTableAdd" type="button">+ Row</button>
-          <button class="toolbtn" id="ipbTableCsv" type="button">CSV</button>
-          <button class="toolbtn primary" id="ipbTableClose" type="button">Done</button>
+        <div class="ipb-card-btns">
+          <button class="ipb-btn" id="ipbTableAdd" type="button">+ Row</button>
+          <button class="ipb-btn" id="ipbTableCsv" type="button">Save as CSV</button>
+          <span class="ipb-card-gap"></span>
+          <button class="ipb-btn ipb-btn-primary" id="ipbTableClose" type="button">Done</button>
         </div>
       </div>
     </div>
@@ -6383,8 +6420,8 @@ const CAT = [
   { k:'bdy',   ss:25, e:'110100', n:'Boundary',                      steps:[1,4], hint:'Units either side go in the two designations' },
   { k:'pl',    ss:25, e:'140300', n:'Phase line',                    steps:[1,4], hint:'Also the time-phase lines of an event template' },
   // ---- step 2: describe environmental effects
-  { k:'mcooR', kind:'mcoo', cls:'restricted', n:'Restricted terrain (MCOO)',        steps:[2], hint:'Single hatch — ATP 2-01.3 table 4-4' },
-  { k:'mcooS', kind:'mcoo', cls:'severe',     n:'Severely restricted terrain (MCOO)', steps:[2], hint:'Double hatch' },
+  { k:'mcooR', kind:'mcoo', cls:'restricted', n:'Restricted terrain',               steps:[2], hint:'Single hatch — ATP 2-01.3 table 4-4' },
+  { k:'mcooS', kind:'mcoo', cls:'severe',     n:'Severely restricted terrain',       steps:[2], hint:'Double hatch' },
   { k:'aa',    ss:25, e:'151404', n:'Avenue of approach',             steps:[2], aff:'03', hint:'Open axis arrow — widest part is the arrowhead; AA1, AA2…' },
   { k:'mc',    ss:25, e:'151404', n:'Mobility corridor',              steps:[2], aff:'03', hint:'Narrower axis inside an avenue; MC1a…' },
   { k:'kt',    ss:25, e:'132100', n:'Key terrain',                    steps:[2], hint:'K in a circle; add "decisive" in the designation if it is' },
@@ -6441,8 +6478,13 @@ const CAT = [
   { k:'ld',    ss:25, e:'141000', n:'Line of departure',              steps:[4] },
   { k:'inf',   ss:25, e:'140800', n:'Infiltration lane',              steps:[4], aff:'06' },
 ];
-const STEP_NAMES = { 1:'Define the environment', 2:'Describe its effects', 3:'Evaluate the threat', 4:'Threat courses of action' };
-const STEP_DEFAULT_OVERLAY = { 1:'AO & control measures', 2:'MCOO & terrain', 3:'Threat template', 4:'COA 1 / event template' };
+const STEP_NAMES = { 1:'Define the battlespace', 2:'Describe the battlespace effects', 3:'Evaluate the enemy', 4:'Enemy courses of action' };
+// the overlay a step's graphics go into: one per step, except step 4 which has one per COA plus the event overlay
+function defaultName(step, role){
+  if (role === 'event') return 'Event overlay';
+  if (step === 4) return 'COA 1 — most likely';
+  return { 1:'Battlespace framework', 2:'MCOO', 3:'Enemy template' }[step] || 'Overlay';
+}
 const AFFS = { '03':'Friend', '06':'Hostile', '04':'Neutral', '01':'Unknown', '05':'Suspect' };
 const AFF_COT = { '03':'f', '06':'h', '04':'n', '01':'u', '05':'s' };
 const ECHELONS = { '00':'—', '11':'Team', '12':'Squad', '13':'Section', '14':'Platoon', '15':'Company', '16':'Battalion', '17':'Regiment', '18':'Brigade' };
@@ -6509,16 +6551,21 @@ function newUid(pfx){ return 'IPB.' + pfx + '.' + (++IPB.seq); }
 function overlayById(id){ return IPB.overlays.find(o => o.id === id); }
 function overlayOf(uid){ return IPB.overlays.find(o => o.items.some(i => i.uid === uid)); }
 function itemOf(uid){ for (const o of IPB.overlays) { const i = o.items.find(i => i.uid === uid); if (i) return i; } return null; }
-function ensureOverlay(step){
-  let o = overlayById(IPB.active[step]);
-  if (!o) o = IPB.overlays.find(o => o.step === step);
-  if (!o) o = addOverlay(step, STEP_DEFAULT_OVERLAY[step]);
-  IPB.active[step] = o.id;
+function roleOf(o){ return o.role || (o.step === 4 ? 'coa' : ({ 1:'frame', 2:'mcoo', 3:'threat' })[o.step] || 'frame'); }
+function ensureOverlay(step, role){
+  role = role || (step === 4 ? 'coa' : undefined);
+  let o = null;
+  if (role !== 'event') { o = overlayById(IPB.active[step]); if (o && role && roleOf(o) !== role) o = null; }
+  if (!o) o = IPB.overlays.find(o => o.step === step && (!role || roleOf(o) === role));
+  if (!o) o = addOverlay(step, defaultName(step, role), role);
+  if (role !== 'event') IPB.active[step] = o.id;
   return o;
 }
-function addOverlay(step, name){
-  const o = { id: newUid('ov'), step, name: name || STEP_DEFAULT_OVERLAY[step], visible: true, items: [] };
-  IPB.overlays.push(o); IPB.active[step] = o.id;
+function addOverlay(step, name, role){
+  role = role || (step === 4 ? 'coa' : undefined);
+  const o = { id: newUid('ov'), step, name: name || defaultName(step, role), visible: true, items: [] };
+  if (role) o.role = role;
+  IPB.overlays.push(o); if (role !== 'event') IPB.active[step] = o.id;
   renderOverlayList(); return o;
 }
 // Overlays draw in list order, so later ones sit on top; moving one changes what covers what.
@@ -6596,6 +6643,9 @@ function drawItem(it){
     layers.push(L.marker(it.pts[0], { icon }).on('click', onClick));
   } else {
     let fc; try { fc = renderGeo(it); } catch(e){ console.warn('IPB render', it.k, e); return; }
+    // an area drawn by the renderer is an outline; give it an invisible fill so a tap inside it selects it
+    if (geomOf(it).geom === 'area' && it.pts.length >= 3)
+      layers.push(L.polygon(it.pts, { stroke: false, fill: true, fillOpacity: 0, className: 'ipb-hit' }).on('click', onClick));
     fc.features.forEach(f => {
       if (f.geometry.type === 'Point'){
         if (f.properties.label != null && f.properties.label !== '')
@@ -6614,8 +6664,8 @@ let _rt = null;
 function scheduleRedraw(){ clearTimeout(_rt); _rt = setTimeout(redrawAll, 60); }
 
 /* ------------------------------------------------------------------ drawing ------------ */
-let draw = null;   // { k, step, pts, min, max, geom, temp }
-function startDraw(k, step){
+let draw = null;   // { k, step, role, pts, min, max, geom, temp }
+function startDraw(k, step, role){
   const c = CAT.find(c => c.k === k); if (!c) return;
   cancelDraw();
   // the host tool's own modes must be off, or a click would do two things
@@ -6623,18 +6673,23 @@ function startDraw(k, step){
   try { if (typeof drawMode !== 'undefined' && drawMode) document.getElementById('drawCancelBtn').click(); } catch(e){}
   const probe = { k, aff: c.aff || '03' };
   const g = geomOf(probe);
-  draw = { k, step, pts: [], min: g.min, max: g.max, geom: g.geom, temp: null };
+  draw = { k, step, role: role || (step === 4 ? 'coa' : undefined), pts: [], min: g.min, max: g.max, geom: g.geom, temp: null };
   document.getElementById('ipbDrawBar').style.display = 'flex';
+  document.getElementById('ipbDrawBarText').textContent = c.n;
   map.getContainer().classList.add('ipb-drawing');
+  showPlacing(c, g);
   updateDrawBar();
-  toast(g.geom === 'point' ? `Click the map to place ${c.n}.` :
-        `Click the map to draw ${c.n} — ${g.min === g.max ? `exactly ${g.min}` : `at least ${g.min}`} point${g.min===1?'':'s'}${g.max < 1e6 && g.max !== g.min ? `, up to ${g.max}` : ''}. Finish when done, Esc to cancel.`, 6000);
+  toast(g.geom === 'point' ? `Click the map where the ${c.n.toLowerCase()} goes.` :
+        `Click the map to draw the ${c.n.toLowerCase()} — ${g.min === g.max ? `${g.min} point${g.min===1?'':'s'}` : `at least ${g.min} points`}${g.max < 1e6 && g.max !== g.min ? `, up to ${g.max}` : ''}. Finish when done, Esc to cancel.`, 6000);
 }
 function updateDrawBar(){
   if (!draw) return;
-  const fin = document.getElementById('ipbDrawFinish');
-  fin.disabled = draw.pts.length < draw.min;
-  fin.textContent = draw.pts.length >= draw.min ? `✓ Finish (${draw.pts.length} pt${draw.pts.length===1?'':'s'})` : `Finish — ${draw.min - draw.pts.length} more point${draw.min - draw.pts.length===1?'':'s'}`;
+  const n = draw.pts.length, need = draw.min - n;
+  const ok = n >= draw.min;
+  const txt = ok ? `✓ Finish (${n} point${n===1?'':'s'})` : need === draw.min && draw.min === 1 ? 'Click the map' : `Finish — ${need} more point${need===1?'':'s'}`;
+  [document.getElementById('ipbDrawFinish'), document.getElementById('ipbPlacingFinish')].forEach(b => { if (b){ b.disabled = !ok; b.textContent = txt; } });
+  const cnt = document.getElementById('ipbPlacingCount');
+  if (cnt) cnt.textContent = n ? `${n} point${n===1?'':'s'} placed${need > 0 ? ` — ${need} more needed` : draw.max <= 20 ? ` of ${draw.max}` : ''}` : '';
 }
 function onMapClick(e){
   if (!draw) return;
@@ -6649,7 +6704,7 @@ function onMapClick(e){
 function finishDraw(){
   if (!draw || draw.pts.length < draw.min) return;
   const c = CAT.find(c => c.k === draw.k);
-  const o = ensureOverlay(draw.step);
+  const o = ensureOverlay(draw.step, draw.role);
   const it = { uid: newUid(c.k), k: c.k, aff: c.aff || '03', pts: draw.pts, mods: {}, notes: '' };
   if (c.kind === 'mcoo') it.cls = c.cls;
   // a default designation. The renderer adds the symbol's own prefix (NAI, TAI, PL, OBJ, EA,
@@ -6661,10 +6716,11 @@ function finishDraw(){
   if (NUM.includes(c.k)) it.mods.T = String(n);
   else if (PRE[c.k] !== undefined) it.mods.T = PRE[c.k] ? PRE[c.k] + n : '';
   o.items.push(it);
-  const fin = draw; cancelDraw();
+  cancelDraw();
   drawItem(it); renderOverlayList(); changed();
   if (c.kind && KINDS[c.kind] && KINDS[c.kind].afterFinish) { KINDS[c.kind].afterFinish(it); return; }
-  openProps(it.uid, true);
+  // no card: the graphic is named already. Tap it on the map (or ✎ in the list) to change anything.
+  toast(`${labelOfItem(it)} placed in “${o.name}”. Tap it on the map to rename or edit.`, 4500);
 }
 function cancelDraw(){
   if (!draw) return;
@@ -6672,6 +6728,7 @@ function cancelDraw(){
   draw = null;
   document.getElementById('ipbDrawBar').style.display = 'none';
   map.getContainer().classList.remove('ipb-drawing');
+  hidePlacing();
 }
 
 /* ------------------------------------------------------------------ properties --------- */
@@ -6681,7 +6738,10 @@ function openProps(uid, fresh){
   propsUid = uid;
   const c = CAT.find(c => c.k === it.k) || {};
   const mo = document.getElementById('ipbProps');
-  document.getElementById('ipbPropsTitle').textContent = c.n + (fresh ? ' — added' : '');
+  document.getElementById('ipbPropsTitle').textContent = labelOfItem(it);
+  document.getElementById('ipbPropsSub').textContent = c.n + (c.hint && !c.x ? ' — ' + c.hint : '');
+  const pre = LABEL_PREFIX[it.k];
+  document.getElementById('ipbP_Tlabel').textContent = pre ? `Number or name (the symbol writes “${pre}” itself)` : c.ss === 10 || c.ss === 15 ? 'Unit / callsign' : 'Name';
   const allowed = c.kind ? ['T'] : modsAllowed(it);
   const custom = c.kind && KINDS[c.kind];
   const show = (id, on) => { document.getElementById(id).style.display = on ? '' : 'none'; };
@@ -6695,8 +6755,9 @@ function openProps(uid, fresh){
   document.getElementById('ipbP_echin').value = it.ech || '00';
   document.getElementById('ipbP_notes').value = it.notes || '';
   const sel = document.getElementById('ipbP_ov'); sel.innerHTML = '';
-  IPB.overlays.forEach(o => { const op = document.createElement('option'); op.value = o.id; op.textContent = `${o.step}. ${o.name}`; if (o.items.includes(it)) op.selected = true; sel.appendChild(op); });
-  document.getElementById('ipbP_code').textContent = custom ? (KINDS[c.kind].describe ? KINDS[c.kind].describe(it) : c.n) : c.kind ? (c.kind === 'mcoo' ? 'MCOO — ATP 2-01.3 table 4-4' : 'free area') : 'APP-6D ' + sidcOf(it);
+  IPB.overlays.forEach(o => { const op = document.createElement('option'); op.value = o.id; op.textContent = `Step ${o.step} · ${o.name}`; if (o.items.includes(it)) op.selected = true; sel.appendChild(op); });
+  document.getElementById('ipbP_code').textContent = custom ? (KINDS[c.kind].describe ? KINDS[c.kind].describe(it) : c.n) : c.kind ? (c.kind === 'mcoo' ? 'MCOO hatching — ATP 2-01.3 table 4-4' : 'Plain labelled area') : 'APP-6D ' + sidcOf(it);
+  const del = document.getElementById('ipbP_del'); del.classList.remove('armed'); del.textContent = 'Delete';
   mo.style.display = 'flex';
   document.getElementById('ipbP_Tin').focus();
 }
@@ -6720,88 +6781,262 @@ function deleteItem(uid){
 }
 
 /* ------------------------------------------------------------------ panel UI ----------- */
-let curStep = 2;
-function renderPicker(){
-  const wrap = document.getElementById('ipbPick'); wrap.innerHTML = '';
-  const q = document.getElementById('ipbSearch').value.trim().toLowerCase();
-  let list = CAT.filter(c => c.steps.includes(curStep) && !c.x);
-  if (q) list = CAT.filter(c => c.n.toLowerCase().includes(q) && !c.x);
-  list.forEach(c => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'ipb-pick'; b.dataset.k = c.k;
-    b.innerHTML = `<span class="ipb-pick-n">${esc(c.n)}</span>${c.hint ? `<span class="ipb-pick-h">${esc(c.hint)}</span>` : ''}`;
-    b.title = c.hint || c.n;
-    b.addEventListener('click', () => ipbInit().then(() => startDraw(c.k, curStep)).catch(e => toast('The symbology renderer could not start: ' + e, 6000)));
-    wrap.appendChild(b);
-  });
-  // whole-catalogue search — anything in the renderer's table, by name
-  if (q && R){
-    const L2 = R.MSLookup.getInstance(), V = R.SymbolID.Version_APP6D;
-    const extra = [];
-    for (const id of L2.getIDList(V)){
-      if (extra.length >= 25) break;
-      const info = L2.getMSLInfo(id, V); if (!info) continue;
-      const ss = info.getSymbolSet(); if (![10,15,25].includes(ss)) continue;
-      if (!String(info.getName()).toLowerCase().includes(q)) continue;
-      if (CAT.some(c => c.ss === ss && c.e === id.slice(2))) continue;
-      const g = String(info.getGeometry() || '').toLowerCase(); if (!g || g === 'point' && (info.getMinPointCount() || 1) < 1) continue;
-      extra.push({ id, ss, name: info.getName(), path: info.getPath() });
-    }
-    extra.forEach(x => {
-      const k = 'x_' + x.id;
-      if (!CAT.some(c => c.k === k)) CAT.push({ k, ss: x.ss, e: x.id.slice(2), n: x.name, steps: [1,2,3,4], aff: x.ss === 25 ? '03' : '06', hint: x.path, x: true });
-      const b = document.createElement('button'); b.type = 'button'; b.className = 'ipb-pick ipb-pick-x'; b.dataset.k = k;
-      b.innerHTML = `<span class="ipb-pick-n">${esc(x.name)}</span><span class="ipb-pick-h">${esc(x.path)}</span>`;
-      b.addEventListener('click', () => startDraw(k, curStep));
-      wrap.appendChild(b);
-    });
-  }
-  if (!list.length && !wrap.children.length) wrap.innerHTML = '<div class="addhint">Nothing matches.</div>';
+// The panel walks the reader through the four IPE steps of Question 1 of the estimate. Each
+// step is a checklist of what normally goes on the map at that point, in doctrinal order; a
+// row ticks when something of that kind has been placed. Placing is one tap and some clicks
+// on the map — the graphic is named automatically, and the edit card only appears when the
+// reader asks for it (tap the graphic, or its line in the list).
+const UNITS = ['u_inf','u_mot','u_arm','u_rec','u_at','u_art','u_mor','u_ad','u_eng','u_sof','u_snp','u_hq'];
+const EQUIP = ['e_veh','e_civ','e_ins','e_ied','e_bt','e_mine','e_wpn'];
+const POSNS = ['asm','bp','sp','atkp','amb'];
+const STEPS = {
+  1: { short:'Define', title:'Define the battlespace', product:'Battlespace framework', role:'frame',
+       blurb:'Draw the ground you are responsible for, and the wider area whose events could affect you.',
+       rows:[ { k:'ao',  n:'Area of operations', h:'The ground you are responsible for — click each corner' },
+              { k:'ai',  n:'Area of interest',   h:'Wider: what happens here could affect the operation' },
+              { k:'bdy', n:'Boundary',           h:'Between units — name the unit on each side afterwards' },
+              { k:'pl',  n:'Phase line',         h:'A named line for control and reporting' } ] },
+  2: { short:'Describe', title:'Describe the battlespace effects', product:'MCOO', role:'mcoo',
+       blurb:'How the ground shapes movement and observation. This builds the modified combined obstacle overlay.',
+       rows:[ { k:'mcooS', n:'Severely restricted terrain', h:'Movement all but stopped — double hatch' },
+              { k:'mcooR', n:'Restricted terrain',          h:'Movement slowed and channelled — single hatch' },
+              { n:'Obstacle', h:'Belts, zones, lines, mined areas, roadblocks', group:['obelt','ozone','oline','mined','mfld','abatis','rblk'] },
+              { n:'Crossing', h:'Bridges, gaps and fords',                     group:['gap','ford','fordD'] },
+              { k:'kt', n:'Key terrain',        h:'Ground whose control gives a marked advantage' },
+              { k:'aa', n:'Avenue of approach', h:'A route a force could take to its objective — draw it from start to finish' },
+              { k:'mc', n:'Mobility corridor',  h:'A narrower channel inside an avenue' },
+              { n:'Observation post / checkpoint', h:'Existing posts and checkpoints', group:['op','cp'] } ],
+       helpers:[ { k:'slope', n:'Slope bands', h:'Draw a box; the ground inside is shaded by steepness' },
+                 { k:'ivl',   n:'Can A see B?', h:'Observer, then target — the line shows where the view is blocked' } ],
+       tables:[ ['terrain','Terrain effects table'], ['weather','Weather effects table'] ] },
+  3: { short:'Enemy', title:'Evaluate the enemy', product:'Enemy template', role:'threat',
+       blurb:'Who they are, what they have and how they would ideally lay out, unconstrained by the ground — the enemy template.',
+       rows:[ { n:'Enemy unit',                h:'Pick the type, then place it',            group:UNITS },
+              { n:'Enemy equipment or device', h:'Vehicles, weapons, IEDs, mines',          group:EQUIP },
+              { n:'Enemy position',            h:'Assembly and battle positions, ambushes', group:POSNS },
+              { k:'flot', n:'Forward line of own troops', h:'Where your forward elements are' },
+              { k:'loc',  n:'Line of contact',            h:'Where the two sides meet' } ] },
+  4: { short:'COAs', title:'Enemy courses of action', product:'COA 1 — most likely', role:'coa',
+       blurb:'How the enemy could act against you on this ground. One situation overlay per course of action, then the event overlay: where and when you would tell them apart.',
+       rows:[ { n:'Axis of advance',     h:'Main or supporting — draw it from start to objective', group:['axm','axs'] },
+              { n:'Direction of attack', h:'Main or supporting',                                   group:['doa','doas'] },
+              { k:'obj', n:'Objective',        h:'What they are trying to take or destroy' },
+              { k:'ea',  n:'Engagement area',  h:'Where they intend to fight' },
+              { k:'ld',  n:'Line of departure', h:'Where the attack starts' },
+              { k:'loa', n:'Limit of advance',  h:'Where it stops' },
+              { k:'inf', n:'Infiltration lane', h:'A covert route in' },
+              { n:'Enemy unit',     h:'As they would actually deploy here', group:UNITS },
+              { n:'Enemy position', h:'Assembly and battle positions, ambushes', group:POSNS } ],
+       event:[ { k:'nai', n:'Named area of interest', h:'Where you would see an indicator of which COA is unfolding' },
+               { k:'tai', n:'Target area of interest', h:'Where you could act on it' },
+               { k:'dp',  n:'Decision point',          h:'Where and when a decision has to be made' } ],
+       tables:[ ['event','Event matrix'], ['dsm','Decision support table'] ] },
+  5: { short:'Products', title:'Products', role:null,
+       blurb:'Everything drawn, as overlays you can show, hide, order and send to ATAK — plus the overlay sheet and the printable brief.' },
+};
+const ROLE_OF_STEP = { 1:'frame', 2:'mcoo', 3:'threat', 4:'coa' };
+const ROLE_NAME = { frame:'Battlespace framework', mcoo:'MCOO', threat:'Enemy template', coa:'COA', event:'Event overlay' };
+function catOf(k){ return CAT.find(c => c.k === k) || { k, n: k }; }
+let curStep = 1;
+let groupPick = {};     // row index -> chosen kind, per step, so the select remembers
+
+function stepOverlays(step, role){ return IPB.overlays.filter(o => o.step === step && (!role || (o.role || ROLE_OF_STEP[o.step]) === role)); }
+function activeCoa(){
+  let o = overlayById(IPB.active[4]);
+  if (o && (o.role || 'coa') === 'coa') return o;
+  return stepOverlays(4, 'coa')[0] || null;
 }
-function renderOverlayList(){
-  const el = document.getElementById('ipbOverlays'); if (!el) return; el.innerHTML = '';
-  const forStep = IPB.overlays.filter(o => o.step === curStep);
-  if (!forStep.length) el.innerHTML = '<div class="addhint">No overlay for this step yet — drawing a graphic creates one.</div>';
-  forStep.forEach(o => {
-    const d = document.createElement('div'); d.className = 'ipb-ov' + (IPB.active[curStep] === o.id ? ' on' : '');
-    d.innerHTML = `<label class="ipb-ov-top"><input type="checkbox" ${o.visible ? 'checked' : ''} title="Show / hide">` +
-      `<input class="ipb-ov-name" value="${esc(o.name)}" spellcheck="false" title="Rename"><span class="count">${o.items.length}</span>` +
-      `<button type="button" class="ipb-ovmove" data-a="up" title="Draw beneath the overlay above">▲</button><button type="button" class="ipb-ovmove" data-a="down" title="Draw on top of the overlay below">▼</button></label>` +
-      `<div class="ipb-ov-items"></div>` +
-      `<div class="ipb-ov-btns"><button data-a="use" title="New graphics go into this overlay">${IPB.active[curStep] === o.id ? 'Active' : 'Use'}</button>` +
-      `<button data-a="tak" title="Export this overlay as a TAK data package">TAK</button><button data-a="kml" title="Export this overlay as KML">KML</button>` +
-      `<button data-a="del" class="ipb-del" title="Delete overlay and its graphics">✕</button></div>`;
-    d.querySelector('input[type=checkbox]').addEventListener('change', ev => { o.visible = ev.target.checked; o.items.forEach(drawItem); changed(); });
-    d.querySelector('.ipb-ov-name').addEventListener('change', ev => { o.name = ev.target.value.trim() || o.name; ev.target.value = o.name; changed(); });
-    const items = d.querySelector('.ipb-ov-items');
-    o.items.forEach(it => {
-      const c = CAT.find(c => c.k === it.k) || { n: it.k };
-      const row = document.createElement('div'); row.className = 'ipb-it';
-      row.innerHTML = `<span class="ipb-it-n">${esc(it.mods?.T || '')}</span><span class="ipb-it-t">${esc(c.n)}</span><button title="Delete">✕</button>`;
-      row.querySelector('.ipb-it-t').addEventListener('click', () => { openProps(it.uid); zoomTo(it); });
-      row.querySelector('.ipb-it-n').addEventListener('click', () => { openProps(it.uid); zoomTo(it); });
-      row.querySelector('button').addEventListener('click', () => deleteItem(it.uid));
-      items.appendChild(row);
+function countOf(ks, step, role){
+  let n = 0;
+  const ovs = role === 'coa' ? [activeCoa()].filter(Boolean) : stepOverlays(step, role);
+  ovs.forEach(o => o.items.forEach(i => { if (ks.includes(i.k)) n++; }));
+  return n;
+}
+function itemsOf(ks, step, role){
+  const out = [];
+  const ovs = role === 'coa' ? [activeCoa()].filter(Boolean) : stepOverlays(step, role);
+  ovs.forEach(o => o.items.forEach(i => { if (ks.includes(i.k)) out.push(i); }));
+  return out;
+}
+function rowEl(row, idx, step, role){
+  const ks = row.group || [row.k];
+  const items = itemsOf(ks, step, role);
+  const d = document.createElement('div'); d.className = 'ipb-row-ck' + (items.length ? ' has' : ''); d.dataset.ks = ks.join(' ');
+  const key = step + ':' + role + ':' + idx;
+  let kind = row.k || groupPick[key] || ks[0];
+  d.innerHTML = `<div class="ipb-ck-top"><span class="ipb-ck-tick">${items.length ? '✓' : ''}</span>` +
+    `<span class="ipb-ck-txt"><div class="ipb-ck-n">${esc(row.n)}</div>${row.h ? `<div class="ipb-ck-h2">${esc(row.h)}</div>` : ''}</span>` +
+    `<button type="button" class="ipb-ck-add">${items.length ? '+ Add' : 'Draw'}</button></div>` +
+    (row.group ? `<div class="ipb-ck-selrow"><select class="ipb-ck-sel" title="Which kind">${ks.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${esc(catOf(k).n)}</option>`).join('')}</select></div>` : '');
+  if (row.group) d.querySelector('.ipb-ck-sel').addEventListener('change', ev => { groupPick[key] = ev.target.value; kind = ev.target.value; });
+  d.querySelector('.ipb-ck-add').addEventListener('click', () => ipbInit().then(() => startDraw(kind, step, role)).catch(e => toast('The symbology renderer could not start: ' + e, 6000)));
+  if (items.length){
+    const list = document.createElement('div'); list.className = 'ipb-ck-items';
+    items.forEach(it => {
+      const r = document.createElement('div'); r.className = 'ipb-it';
+      r.innerHTML = `<span class="ipb-it-t" title="Show on the map">${esc(labelOfItem(it))}</span><button type="button" class="ipb-it-edit" title="Rename / edit">✎</button><button type="button" class="ipb-it-del" title="Delete">✕</button>`;
+      r.querySelector('.ipb-it-t').addEventListener('click', () => zoomTo(it));
+      r.querySelector('.ipb-it-edit').addEventListener('click', () => { zoomTo(it); openProps(it.uid); });
+      r.querySelector('.ipb-it-del').addEventListener('click', () => deleteItem(it.uid));
+      list.appendChild(r);
     });
-    d.querySelector('[data-a=use]').addEventListener('click', () => { IPB.active[curStep] = o.id; renderOverlayList(); });
+    d.appendChild(list);
+  }
+  return d;
+}
+function heading(t){ const h = document.createElement('div'); h.className = 'ipb-ck-h'; h.textContent = t; return h; }
+function renderCoaBar(){
+  const bar = document.getElementById('ipbCoaBar'); bar.innerHTML = '';
+  if (curStep !== 4){ bar.hidden = true; return; }
+  bar.hidden = false;
+  const coas = stepOverlays(4, 'coa'); const act = activeCoa();
+  if (!coas.length){ const b = document.createElement('button'); b.type = 'button'; b.className = 'on'; b.textContent = defaultName(4, 'coa'); b.title = 'The first course of action — created when you draw'; bar.appendChild(b); }
+  coas.forEach(o => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = o.name; b.classList.toggle('on', o === act); b.title = 'Work on this course of action';
+    b.addEventListener('click', () => { IPB.active[4] = o.id; renderOverlayList(); });
+    bar.appendChild(b);
+  });
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'ipb-coa-add'; add.textContent = '+ Another COA';
+  add.addEventListener('click', () => {
+    const n = coas.length + 1;
+    const name = prompt('Name for the course of action:', n === 2 ? 'COA 2 — most dangerous' : `COA ${n}`);
+    if (n === null || name === null) return;
+    addOverlay(4, name.trim() || `COA ${n}`, 'coa'); changed();
+  });
+  bar.appendChild(add);
+}
+function renderChecklist(){
+  const el = document.getElementById('ipbOverlays'); if (!el) return; el.innerHTML = '';
+  const S = STEPS[curStep]; if (!S || !S.rows) return;
+  const role = S.role;
+  if (curStep === 4) el.appendChild(heading((activeCoa() ? activeCoa().name : 'COA 1') + ' — situation overlay'));
+  S.rows.forEach((row, i) => el.appendChild(rowEl(row, i, curStep, role)));
+  if (S.event){
+    el.appendChild(heading('Event overlay — telling the COAs apart'));
+    S.event.forEach((row, i) => el.appendChild(rowEl(row, i, 4, 'event')));
+  }
+  if (S.helpers){
+    el.appendChild(heading('Terrain analysis — data, not decisions'));
+    S.helpers.forEach((row, i) => el.appendChild(rowEl(row, i, curStep, role)));
+  }
+}
+const uiVals = {};   // what the reader typed into the step extras (thresholds, TPL settings) — they survive re-renders
+function renderExtra(){
+  const ex = document.getElementById('ipbStepExtra'); ex.innerHTML = '';
+  const S = STEPS[curStep];
+  if (!ex._wired){ ex._wired = true; ex.addEventListener('input', e => { if (e.target.id) uiVals[e.target.id] = e.target.value; }); ex.addEventListener('change', e => { if (e.target.id) uiVals[e.target.id] = e.target.value; }); }
+
+  if (curStep === 2){
+    ex.insertAdjacentHTML('beforeend', `<div class="ipb-help"><b>Slope band thresholds</b> — steeper than (%)
+      <div class="ipb-help-row"><label>yellow <input id="ipbSlope1" type="number" value="10" min="0" step="1"></label><label>orange <input id="ipbSlope2" type="number" value="30" min="0" step="1"></label><label>red <input id="ipbSlope3" type="number" value="45" min="0" step="1"></label></div>
+      <div class="addhint" style="margin-top:4px">Used when you draw Slope bands above. 576 elevation samples from the elevation service named in Help &amp; OPSEC; the shading is the data, what it means for movement is your call.</div></div>`);
+  }
+  if (curStep === 4){
+    ex.insertAdjacentHTML('beforeend', `<div class="ipb-help"><b>Time-phase lines</b> — how far along an axis the enemy gets, hour by hour
+      <select id="ipbTplAxis"><option value="">— draw an axis of advance first —</option></select>
+      <div class="ipb-help-row"><label>speed km/h <input id="ipbTplRate" type="number" value="20" min="1" step="1"></label><label>every (h) <input id="ipbTplEvery" type="number" value="1" min="0.25" step="0.25"></label><label>line length km <input id="ipbTplLen" type="number" value="2" min="0.2" step="0.5"></label></div>
+      <div class="ipb-help-row"><label style="flex:1">start DTG (optional) <input id="ipbTplStart" type="text" placeholder="140600ZSEP26" autocomplete="off" spellcheck="false"></label><button type="button" id="ipbTplGo" class="ipb-go">Place lines</button></div>
+      <div class="addhint" style="margin-top:4px">Lines go into the event overlay, labelled +1 h, +2 h… or with the DTG if you give a start. The speed is your planning figure.</div></div>`);
+  }
+  if (S.tables){
+    ex.appendChild(heading('Tables for this step'));
+    const g = document.createElement('div'); g.className = 'ipb-grid2'; g.id = 'ipbTables';
+    S.tables.forEach(([t, n]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.t = t; b.textContent = n; g.appendChild(b); });
+    ex.appendChild(g);
+  }
+  if (curStep === 5) renderProducts(ex);
+  ex.querySelectorAll('input[id], select[id]').forEach(el => { if (uiVals[el.id] !== undefined && el.id !== 'ipbTplAxis') el.value = uiVals[el.id]; });
+}
+function renderProducts(ex){
+  if (!IPB.overlays.length) ex.insertAdjacentHTML('beforeend', '<div class="addhint">Nothing drawn yet — start at step 1. The tables below can be filled in at any time.</div>');
+  IPB.overlays.forEach(o => {
+    const d = document.createElement('div'); d.className = 'ipb-prod';
+    d.innerHTML = `<label class="ipb-prod-top"><input type="checkbox" ${o.visible ? 'checked' : ''} title="Show / hide on the map">` +
+      `<input class="ipb-prod-name" value="${esc(o.name)}" spellcheck="false" title="Rename">` +
+      `<button type="button" class="ipb-ovmove" data-a="up" title="Draw beneath the one above">▲</button><button type="button" class="ipb-ovmove" data-a="down" title="Draw on top of the one below">▼</button></label>` +
+      `<div class="ipb-prod-meta">Step ${o.step} · ${ROLE_NAME[o.role || ROLE_OF_STEP[o.step]] || ''} · ${o.items.length} graphic${o.items.length===1?'':'s'}</div>` +
+      `<div class="ipb-prod-btns"><button data-a="tak" title="Send this overlay to ATAK as a data package">To ATAK (TAK)</button><button data-a="kml" title="Save this overlay as KML">KML</button><button data-a="del" class="ipb-del" title="Delete this overlay and everything in it">✕</button></div>`;
+    d.querySelector('input[type=checkbox]').addEventListener('change', ev => { o.visible = ev.target.checked; o.items.forEach(drawItem); changed(); });
+    d.querySelector('.ipb-prod-name').addEventListener('change', ev => { o.name = ev.target.value.trim() || o.name; ev.target.value = o.name; changed(); });
     d.querySelectorAll('.ipb-ovmove').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); moveOverlay(o.id, b.dataset.a === 'up' ? -1 : 1); }));
     d.querySelector('[data-a=tak]').addEventListener('click', () => exportOverlayTAK(o.id));
     d.querySelector('[data-a=kml]').addEventListener('click', () => exportOverlayKML(o.id));
     d.querySelector('[data-a=del]').addEventListener('click', () => { if (!o.items.length || confirm(`Delete “${o.name}” and its ${o.items.length} graphic${o.items.length===1?'':'s'}?`)) removeOverlay(o.id); });
-    el.appendChild(d);
+    ex.appendChild(d);
   });
+  ex.appendChild(heading('Brief'));
+  ex.insertAdjacentHTML('beforeend', `<div class="ipb-grid2"><button type="button" id="ipbAcetate" title="Everything visible as one overlay sheet with register marks, scale bar, title block and legend — PNG">Overlay sheet (PNG)</button><button type="button" id="ipbBrief" title="A printable page: the sheet and every filled-in table — print to PDF">Print brief</button></div>`);
+  ex.appendChild(heading('Tables'));
+  const g = document.createElement('div'); g.className = 'ipb-grid2'; g.id = 'ipbTables';
+  [['event','Event matrix'],['dsm','Decision support'],['terrain','Terrain effects'],['weather','Weather effects']].forEach(([t, n]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.t = t; b.textContent = n; g.appendChild(b); });
+  ex.appendChild(g);
+  ex.insertAdjacentHTML('beforeend', '<div class="addhint">To ATAK: lines and areas arrive as the doctrinal strokes (drawings), point symbols as spot markers carrying the APP-6 icon, enemy units as proper unit types. KML carries the same geometry for GRG overlays.</div>');
+}
+function renderOverlayList(){   // the checklist, the COA bar and the step extras — everything that depends on what is placed
+  renderCoaBar(); renderChecklist(); renderExtra();
+  document.querySelectorAll('#ipbSteps button').forEach(b => { const s = +b.dataset.s; b.classList.toggle('has', s < 5 && stepOverlays(s).some(o => o.items.length)); });
+}
+function renderPicker(){   // the "something else" search — the whole APP-6D catalogue by name
+  const wrap = document.getElementById('ipbPick'); if (!wrap) return; wrap.innerHTML = '';
+  const q = document.getElementById('ipbSearch').value.trim().toLowerCase();
+  if (!q){ wrap.innerHTML = '<div class="addhint">Type a name to search the standard: every control measure, unit and equipment symbol in APP-6D. Whatever you pick goes into the current step.</div>'; return; }
+  const list = CAT.filter(c => c.n.toLowerCase().includes(q) && !c.x);
+  const step = curStep === 5 ? 4 : curStep, role = STEPS[step].role;
+  const mk = (k, name, hint, extra) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ipb-pick' + (extra ? ' ipb-pick-x' : ''); b.dataset.k = k;
+    b.innerHTML = `<span class="ipb-pick-n">${esc(name)}</span>${hint ? `<span class="ipb-pick-h">${esc(hint)}</span>` : ''}`;
+    b.addEventListener('click', () => ipbInit().then(() => startDraw(k, step, role)).catch(e => toast('The symbology renderer could not start: ' + e, 6000)));
+    wrap.appendChild(b);
+  };
+  list.forEach(c => mk(c.k, c.n, c.hint));
+  if (R){
+    const L2 = R.MSLookup.getInstance(), V = R.SymbolID.Version_APP6D; let n = 0;
+    for (const id of L2.getIDList(V)){
+      if (n >= 25) break;
+      const info = L2.getMSLInfo(id, V); if (!info) continue;
+      const ss = info.getSymbolSet(); if (![10,15,25].includes(ss)) continue;
+      if (!String(info.getName()).toLowerCase().includes(q)) continue;
+      if (CAT.some(c => c.ss === ss && c.e === id.slice(2))) continue;
+      const g = String(info.getGeometry() || '').toLowerCase(); if (!g) continue;
+      const k = 'x_' + id;
+      if (!CAT.some(c => c.k === k)) CAT.push({ k, ss, e: id.slice(2), n: info.getName(), steps: [1,2,3,4], aff: ss === 25 ? '03' : '06', hint: info.getPath(), x: true });
+      mk(k, info.getName(), info.getPath(), true); n++;
+    }
+  }
+  if (!wrap.children.length) wrap.innerHTML = '<div class="addhint">Nothing matches.</div>';
 }
 function zoomTo(it){ const b = L.latLngBounds(it.pts); if (it.pts.length === 1) map.setView(it.pts[0], Math.max(map.getZoom(), 13)); else map.fitBounds(b.pad(.5)); }
 function setStep(s){
+  s = Math.min(5, Math.max(1, +s || 1));
+  if (draw) cancelDraw();
   curStep = s;
   document.querySelectorAll('#ipbSteps button').forEach(b => b.classList.toggle('on', +b.dataset.s === s));
-  document.getElementById('ipbStepName').textContent = STEP_NAMES[s];
-  renderPicker(); renderOverlayList();
+  document.getElementById('ipbStepTitle').textContent = `Step ${s} — ${STEPS[s].title}`;
+  document.getElementById('ipbStepBlurb').textContent = STEPS[s].blurb;
+  document.getElementById('ipbMore').hidden = s === 5;
+  renderOverlayList(); renderPicker();
+}
+// the placing prompt in the panel, mirrored by the small bar on the map
+function showPlacing(c, g){
+  const p = document.getElementById('ipbPlacing'); if (!p) return;
+  document.getElementById('ipbPlacingName').textContent = c.n;
+  document.getElementById('ipbPlacingHow').textContent =
+    g.geom === 'point' ? 'Click the map where it goes.' :
+    g.min === g.max ? `Click ${g.min} point${g.min===1?'':'s'} on the map${c.hint ? ' — ' + c.hint.replace(/^\d+ points?: /i, '') : ''}.` :
+    g.geom === 'area' ? 'Click each corner on the map, then Finish.' : 'Click along its length on the map, then Finish.';
+  p.hidden = false;
+  ['ipbOverlays','ipbCoaBar','ipbStepExtra','ipbMore'].forEach(id => { document.getElementById(id).hidden = true; });
+}
+function hidePlacing(){
+  const p = document.getElementById('ipbPlacing'); if (!p) return;
+  p.hidden = true;
+  document.getElementById('ipbOverlays').hidden = false; document.getElementById('ipbCoaBar').hidden = curStep !== 4; document.getElementById('ipbStepExtra').hidden = false; document.getElementById('ipbMore').hidden = curStep === 5;
 }
 
 /* ------------------------------------------------------------------ persistence -------- */
 function serialize(){
   return { seq: IPB.seq, active: IPB.active, tables: IPB.tables,
-    overlays: IPB.overlays.map(o => ({ id: o.id, step: o.step, name: o.name, visible: o.visible,
+    overlays: IPB.overlays.map(o => ({ id: o.id, step: o.step, role: o.role || undefined, name: o.name, visible: o.visible,
       items: o.items.map(i => ({ uid: i.uid, k: i.k, aff: i.aff, ech: i.ech || undefined, cls: i.cls || undefined, pts: i.pts, mods: i.mods || {}, notes: i.notes || '', data: i.data || undefined })) })) };
 }
 function clearIPB(){ IPB.overlays.forEach(o => o.items.forEach(i => clearGfx(i.uid))); IPB.overlays = []; IPB.active = {}; IPB.tables = {}; renderOverlayList(); }
@@ -6809,7 +7044,8 @@ function load(obj){
   clearIPB(); if (!obj) return;
   IPB.seq = Math.max(IPB.seq, +obj.seq || 0);
   (obj.overlays || []).forEach(O => {
-    const o = { id: O.id || newUid('ov'), step: +O.step || 2, name: O.name || STEP_DEFAULT_OVERLAY[+O.step || 2], visible: O.visible !== false, items: [] };
+    const o = { id: O.id || newUid('ov'), step: +O.step || 2, name: O.name || defaultName(+O.step || 2, O.role), visible: O.visible !== false, items: [] };
+    if (O.role) o.role = O.role;
     (O.items || []).forEach(I => {
       if (!I.k || !Array.isArray(I.pts) || !I.pts.length) return;
       const c = CAT.find(c => c.k === I.k);
@@ -7011,12 +7247,18 @@ function wire(){
   document.querySelectorAll('#ipbSteps button').forEach(b => b.addEventListener('click', () => setStep(+b.dataset.s)));
   document.getElementById('ipbSearch').addEventListener('input', () => { renderPicker(); });
   document.getElementById('ipbSearch').addEventListener('focus', () => { ipbInit().then(renderPicker).catch(() => {}); });
-  document.getElementById('ipbNewOv').addEventListener('click', () => { const n = prompt('Name for the new overlay (e.g. COA 2):', STEP_DEFAULT_OVERLAY[curStep]); if (n !== null) addOverlay(curStep, n.trim() || STEP_DEFAULT_OVERLAY[curStep]); changed(); });
   document.getElementById('ipbDrawFinish').addEventListener('click', finishDraw);
   document.getElementById('ipbDrawCancel').addEventListener('click', cancelDraw);
+  document.getElementById('ipbPlacingFinish').addEventListener('click', finishDraw);
+  document.getElementById('ipbPlacingCancel').addEventListener('click', cancelDraw);
   document.getElementById('ipbP_ok').addEventListener('click', () => closeProps(true));
   document.getElementById('ipbP_cancel').addEventListener('click', () => closeProps(false));
-  document.getElementById('ipbP_del').addEventListener('click', () => { const u = propsUid; closeProps(false); if (u) deleteItem(u); });
+  // delete asks for a second click rather than a dialog
+  document.getElementById('ipbP_del').addEventListener('click', ev => {
+    const b = ev.currentTarget;
+    if (!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent = 'Click again to delete'; setTimeout(() => { b.classList.remove('armed'); b.textContent = 'Delete'; }, 3500); return; }
+    const u = propsUid; closeProps(false); if (u) deleteItem(u);
+  });
   document.getElementById('ipbProps').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeProps(true); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape'){ if (draw) { e.stopPropagation(); cancelDraw(); } else if (propsUid) { e.stopPropagation(); closeProps(true); } }
@@ -7024,11 +7266,11 @@ function wire(){
   }, true);
   map.on('click', onMapClick);
   map.on('zoomend moveend', scheduleRedraw);
-  setStep(2);
+  setStep(1);
   if (!ipbSupported()) {
     const n = document.createElement('div'); n.className = 'addhint';
-    n.innerHTML = '<b>This browser cannot run the symbology renderer</b> (no gzip support) — the IPB overlay needs a current Chrome, Safari, Firefox or Edge. Saved graphics are kept in the project and will draw on a browser that can.';
-    document.getElementById('ipbPick').replaceWith(n);
+    n.innerHTML = '<b>This browser cannot run the symbology renderer</b> (no gzip support) — the IPE overlay needs a current Chrome, Safari, Firefox or Edge. Saved graphics are kept in the project and will draw on a browser that can.';
+    document.getElementById('ipbStepBlurb').after(n);
   }
   // a warm start once the section is first shown, so the first pick does not wait
   const sec = document.getElementById('sec-ipb');
@@ -7037,9 +7279,10 @@ function wire(){
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 
 // exposed for tests and for the shell
-window.ipb = { CAT, IPB, KINDS, STEP_NAMES, MCOO, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, moveOverlay, setStep,
+window.ipb = { CAT, IPB, KINDS, STEP_NAMES, STEPS, MCOO, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, moveOverlay, setStep,
                serialize, load, redrawAll, drawItem, exportOverlayTAK, exportOverlayKML, sidcOf, geomOf, overlayCotItems, ensureOverlay,
                renderGeo, renderSvg, renderPicker, renderOverlayList, itemOf, overlayOf, overlayById, newUid, changed, labelOfItem, zoomTo,
+               roleOf, activeCoa, defaultName,
                get renderer(){ return R; }, get draw(){ return draw; }, get step(){ return curStep; } };
 })();
 
@@ -7248,7 +7491,7 @@ function makeTpls(){
   const path = it.pts.map(p => L.latLng(p[0], p[1]));
   const total = path.slice(1).reduce((s, p, i) => s + map.distance(path[i], p), 0);
   const step = rate * 1000 * every; if (step <= 0 || total < step * 0.5){ toast('That rate and interval put the first line beyond the end of the axis.'); return; }
-  const o = A.ensureOverlay(4); let n = 0;
+  const o = A.ensureOverlay(4, 'event'); let n = 0;
   for (let d = step, k = 1; d <= total + 1e-6; d += step, k++){
     // walk to distance d
     let acc = 0, seg = 0; while (seg < path.length - 1 && acc + map.distance(path[seg], path[seg + 1]) < d) { acc += map.distance(path[seg], path[seg + 1]); seg++; }
@@ -7329,7 +7572,7 @@ KINDS.slope = {
   },
   describe(it){ const d = it.data || {}; return d.grid ? `Slope bands — ${d.nx}×${d.ny} samples, ${d.src}; shaded above ${d.thr[0]} %, ${d.thr[1]} %, ${d.thr[2]} %` : d.failed ? 'Slope bands — the elevation service could not be reached; delete this box and try again with signal' : 'Slope bands — fetching elevations…'; },
   async afterFinish(it){
-    const thr = ['ipbSlope1','ipbSlope2','ipbSlope3'].map(id => +document.getElementById(id).value || 0).sort((a, b) => a - b);
+    const thr = ['ipbSlope1','ipbSlope2','ipbSlope3'].map((id, i) => { const el = document.getElementById(id); return el ? (+el.value || 0) : [10, 30, 45][i]; }).sort((a, b) => a - b);
     const b = L.latLngBounds(it.pts); const N = 24;
     const lats = [], lons = []; for (let i = 0; i < N; i++){ lats.push(b.getSouth() + (b.getNorth() - b.getSouth()) * i / (N - 1)); lons.push(b.getWest() + (b.getEast() - b.getWest()) * i / (N - 1)); }
     const pts = []; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) pts.push([lats[j], lons[i]]);
@@ -7373,17 +7616,21 @@ CAT.push({ k: 'slope', kind: 'slope', n: 'Slope bands (elevation grid)',    step
 
 /* ------------------------------------------------------------------ wiring ------------- */
 function wire(){
-  document.querySelectorAll('#ipbTables button[data-t]').forEach(b => b.addEventListener('click', () => openTable(b.dataset.t)));
+  // the step panel re-renders its buttons, so listen on the section and look at what was clicked
+  document.getElementById('sec-ipb').addEventListener('click', e => {
+    const t = e.target.closest('button'); if (!t) return;
+    if (t.dataset.t && t.closest('#ipbTables')) openTable(t.dataset.t);
+    else if (t.id === 'ipbAcetate') exportAcetate().catch(err => toast('Could not build the sheet: ' + err, 6000));
+    else if (t.id === 'ipbBrief') printBrief().catch(err => toast('Could not build the brief: ' + err, 6000));
+    else if (t.id === 'ipbTplGo') makeTpls();
+  });
+  document.getElementById('sec-ipb').addEventListener('focusin', e => { if (e.target.id === 'ipbTplAxis') refreshTplAxes(); });
   document.getElementById('ipbTableAdd').addEventListener('click', addRow);
   document.getElementById('ipbTableCsv').addEventListener('click', exportTableCsv);
   document.getElementById('ipbTableClose').addEventListener('click', closeTable);
   document.getElementById('ipbTable').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeTable(); });
-  document.getElementById('ipbAcetate').addEventListener('click', () => exportAcetate().catch(e => toast('Could not build the sheet: ' + e, 6000)));
-  document.getElementById('ipbBrief').addEventListener('click', () => printBrief().catch(e => toast('Could not build the brief: ' + e, 6000)));
-  document.getElementById('ipbTplGo').addEventListener('click', makeTpls);
-  document.getElementById('ipbTplAxis').addEventListener('focus', refreshTplAxes);
   const sec = document.getElementById('sec-ipb');
-  new MutationObserver(refreshTplAxes).observe(document.getElementById('ipbOverlays'), { childList: true });
+  new MutationObserver(refreshTplAxes).observe(document.getElementById('ipbOverlays'), { childList: true });   // fires after the whole re-render, so the axis select already exists
   A.renderPicker();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
@@ -7409,7 +7656,7 @@ Object.assign(window.ipb, { TABLES, openTable, closeTable, addRow, tableCsv, bui
               'sec-imagery','sec-select','sec-export','sec-ipb','sec-help']
   };
   var LABEL = { project:'Project', plot:'Plot', layers:'Layers', tools:'Tools',
-                export:'Export', ipb:'IPB overlay', base:'Map & basemap', help:'Help & OPSEC',
+                export:'Export', ipb:'IPE — Question 1', base:'Map & basemap', help:'Help & OPSEC',
                 all:'Everything' };
   var MKEY = 'ped.menu.v1', TKEY = 'ped.theme.v1';
   var wrap = document.getElementById('wrap');
