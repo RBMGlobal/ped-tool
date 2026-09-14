@@ -242,6 +242,16 @@
   #drawBar { display: none; position: absolute; z-index: 1250; left: 50%; top: 12px; transform: translateX(-50%); gap: 8px; }
   #drawBar button { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--ink-1); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
   #drawBar #drawFinishBtn { background: var(--ink-1); color: var(--surface-1); border-color: var(--ink-1); }
+  /* shape editing: corner / midpoint / centre / edge handles, and the bar that ends it */
+  #shapeEditBar { display: none; position: absolute; z-index: 1250; left: 50%; top: 12px; transform: translateX(-50%); gap: 8px; align-items: center; }
+  #shapeEditBar button { font: inherit; font-size: 13px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--ink-1); background: var(--ink-1); color: var(--surface-1); cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+  #shapeEditBar span { font-size: 12px; color: var(--ink-1); background: var(--surface-1); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.25); white-space: nowrap; }
+  .sh-vtx, .sh-mid, .sh-ctr, .sh-edge { border-radius: 50%; box-sizing: border-box; cursor: move; }
+  .sh-vtx  { background: #fff; border: 2px solid #111; }
+  .sh-mid  { background: rgba(255,255,255,.75); border: 1px dashed #111; }
+  .sh-ctr  { background: #111; border: 2px solid #fff; }
+  .sh-edge { background: #fff; border: 2px solid #111; }
+  @media (max-width: 720px) { #shapeEditBar span { display: none; } }
   /* touch devices: bigger targets, no hover-dependent affordances */
   @media (pointer: coarse) {
     .toolbtn, .basemap-row button { padding: 11px 8px; font-size: 13.5px; }
@@ -665,7 +675,7 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
       <button id="drawPolyBtn">Draw area</button>
       <button id="drawCircBtn">Draw circle</button>
     </div>
-    <div id="shapeList"><div class="rt-empty">No areas yet. <b>Draw area</b>: click corners, double-click or Enter to finish. <b>Draw circle</b>: click the centre, then the edge. Esc cancels.</div></div>
+    <div id="shapeList"><div class="rt-empty">No areas yet. <b>Draw area</b>: click corners, double-click or Enter to finish. <b>Draw circle</b>: click the centre, then the edge. Esc cancels. Click any area on the map to rename, recolour, move its corners or delete it.</div></div>
     </details>
 
     <details class="sec" id="sec-imagery" open>
@@ -881,6 +891,7 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
       </div>
     </div>
     <div id="drawBar"><button id="drawFinishBtn">✓ Finish area</button><button id="drawCancelBtn">✕ Cancel</button></div>
+    <div id="shapeEditBar"><span id="shapeEditHint"></span><button id="shapeEditDone">✓ Done</button></div>
     <div id="rbmRail">
       <div class="rbm-railgrp">
         <button data-act="zin" title="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -5326,11 +5337,14 @@ document.getElementById('routeUrl').addEventListener('keydown', e => { if (e.key
 let shapeSeq = 0;
 const shapes = {};
 let drawMode = null, drawPts = [], drawTemp = null;
+let shapePopup = null, shapeEdit = null;   // map-side selection / corner editing (below)
 
 function setDraw(mode){
   const was = drawMode;
   cancelDraw(true);
   if (was === mode) return;              // clicking the active button toggles off
+  if (shapeEdit) endShapeEdit(true);
+  if (shapePopup) map.closePopup(shapePopup);
   drawMode = mode;
   if (pickMode) setPick(false);
   if (typeof boxSelMode !== 'undefined' && boxSelMode) setBoxSel(false);
@@ -5413,7 +5427,9 @@ function drawShape(sh){
     ? L.circle([sh.center.lat, sh.center.lon], { ...opt, radius: sh.radius })
     : L.polygon(sh.latlngs.map(p => [p.lat, p.lon]), opt);
   sh.layer.bindTooltip(esc(sh.name), { sticky:true });
+  sh.layer.on('click', e => onShapeClick(sh, e));
   sh.layer.addTo(map);
+  if (shapeEdit && shapeEdit.uid === sh.uid) sh.layer.setStyle({ dashArray:'6 4', weight:4 });
 }
 function polyAreaKm2(ll){
   const R = 6371000; let a = 0;
@@ -5450,10 +5466,133 @@ function renderShapeList(){
 }
 function removeShape(uid, quiet){
   const sh = shapes[uid]; if (!sh) return;
+  if (shapeEdit && shapeEdit.uid === uid) endShapeEdit(true);
+  if (shapePopup && shapePopup._shUid === uid) map.closePopup(shapePopup);
   if (sh.layer) map.removeLayer(sh.layer);
   delete shapes[uid];
   if (!quiet){ renderShapeList(); refreshSelUI(); scheduleAutosave(); toast(`Area “${sh.name}” deleted.`); }
 }
+
+/* ---------- select / edit / delete an area from the map ----------
+   Click an area: a card with its name, colour and notes, plus Edit corners, Export and Delete.
+   Edit corners puts handles on the shape — drag a corner to move it, drag a hollow midpoint to add
+   a corner, click a corner to remove it (circles: drag the centre to move, the edge to resize).
+   Clicks are ignored while another map mode owns the click (drawing, pick, box-select, IPB). */
+function mapClickOwned(){
+  const m = document.getElementById('map');
+  return m.classList.contains('map-pick') || m.classList.contains('ipb-drawing') ||
+         (typeof boxSelMode !== 'undefined' && boxSelMode);
+}
+function onShapeClick(sh, e){
+  if (mapClickOwned()) return;                       // let the click fall through to the map
+  L.DomEvent.stopPropagation(e);
+  if (shapeEdit) { if (shapeEdit.uid !== sh.uid) { endShapeEdit(true); openShapePopup(sh, e.latlng); } return; }
+  openShapePopup(sh, e.latlng);
+}
+function shapePopupHTML(sh){
+  return `<div class="pp shp" data-uid="${sh.uid}">
+    <div class="cat" style="color:${sh.color}">${sh.kind==='circ' ? 'Circle' : 'Area'} · ${shapeMeta(sh).replace(/^(Circle|Polygon) · /, '')}</div>
+    <div class="afflabel">Name</div><input class="nameedit sh-pname" value="${esc(sh.name)}" spellcheck="false">
+    <div class="afflabel">Colour</div><input type="color" class="dotcol sh-pcol" value="${sh.color}">
+    <div class="afflabel">Notes → TAK remarks</div><textarea class="ptnotes sh-pnotes" rows="2" placeholder="e.g. ambush site reported 12 Sep">${esc(sh.notes||'')}</textarea>
+    <div class="rowbtns"><button class="mvbtn sh-pedit">${sh.kind==='circ' ? 'Move / resize' : 'Edit corners'}</button><button class="mvbtn sh-pexp">Export TAK</button></div>
+    <div class="rowbtns"><button class="rmbtn sh-pdel">Delete</button></div>
+  </div>`;
+}
+function openShapePopup(sh, latlng){
+  if (!shapePopup) shapePopup = L.popup({ minWidth: 230, maxWidth: 300, maxHeight: 420 });
+  shapePopup._shUid = sh.uid;
+  shapePopup.setLatLng(latlng).setContent(shapePopupHTML(sh)).openOn(map);
+  wireShapePopup(sh);
+}
+function wireShapePopup(sh){
+  const el = shapePopup.getElement(); if (!el) return;
+  const nm = el.querySelector('.sh-pname');
+  nm.oninput = () => { sh.name = nm.value.trim() || sh.name; sh.layer.setTooltipContent(esc(sh.name)); renderShapeList(); scheduleAutosave(); };
+  nm.onkeydown = e => { if (e.key === 'Enter') nm.blur(); };
+  const col = el.querySelector('.sh-pcol');
+  col.oninput = () => { sh.color = col.value; sh.layer.setStyle({ color: sh.color, fillColor: sh.color }); el.querySelector('.cat').style.color = sh.color; renderShapeList(); scheduleAutosave(); };
+  const notes = el.querySelector('.sh-pnotes');
+  notes.oninput = () => { sh.notes = notes.value; scheduleAutosave(); };
+  el.querySelector('.sh-pedit').onclick = () => { map.closePopup(shapePopup); startShapeEdit(sh.uid); };
+  el.querySelector('.sh-pexp').onclick = () => exportShapeTAK(sh.uid);
+  const del = el.querySelector('.sh-pdel');
+  del.onclick = () => {
+    if (del.dataset.armed){ removeShape(sh.uid); return; }
+    del.dataset.armed = '1'; del.textContent = 'Click again to delete';
+    setTimeout(() => { if (del.isConnected){ delete del.dataset.armed; del.textContent = 'Delete'; } }, 3500);
+  };
+}
+function handleIcon(cls, px){ return L.divIcon({ className: cls, iconSize: [px, px], iconAnchor: [px/2, px/2] }); }
+function startShapeEdit(uid){
+  const sh = shapes[uid]; if (!sh) return;
+  if (shapeEdit) endShapeEdit(true);
+  if (drawMode) cancelDraw(true);
+  shapeEdit = { uid, handles: [] };
+  sh.layer.setStyle({ dashArray: '6 4', weight: 4 });
+  const bar = document.getElementById('shapeEditBar');
+  document.getElementById('shapeEditHint').textContent = sh.kind === 'circ'
+    ? 'Drag the centre to move, the edge handle to resize'
+    : 'Drag corners · drag a hollow midpoint to add one · click a corner to remove it';
+  bar.style.display = 'flex';
+  buildShapeHandles(sh);
+  toast(sh.kind === 'circ' ? `Editing “${sh.name}” — Done or Esc when finished.` : `Editing “${sh.name}” — drag corners, Done or Esc when finished.`, 5000);
+}
+function clearShapeHandles(){
+  if (!shapeEdit) return;
+  shapeEdit.handles.forEach(h => map.removeLayer(h));
+  shapeEdit.handles = [];
+}
+function shapeEdited(sh){ drawShape(sh); renderShapeList(); scheduleAutosave(); }
+function buildShapeHandles(sh){
+  clearShapeHandles();
+  const H = shapeEdit.handles;
+  const big = L.Browser.touch ? 22 : 14, small = L.Browser.touch ? 18 : 11;
+  if (sh.kind === 'circ'){
+    const ctr = L.marker([sh.center.lat, sh.center.lon], { icon: handleIcon('sh-ctr', big), draggable: true, zIndexOffset: 2000 }).addTo(map);
+    const edgeLL = () => { const c = L.latLng(sh.center.lat, sh.center.lon); const dLon = sh.radius / (111320 * Math.cos(c.lat * Math.PI/180)); return L.latLng(c.lat, c.lng + dLon); };
+    const edge = L.marker(edgeLL(), { icon: handleIcon('sh-edge', big), draggable: true, zIndexOffset: 2000 }).addTo(map);
+    ctr.on('drag', e => { const p = e.target.getLatLng(); sh.center = { lat: +p.lat.toFixed(6), lon: +p.lng.toFixed(6) }; sh.layer.setLatLng(p); edge.setLatLng(edgeLL()); });
+    ctr.on('dragend', () => shapeEdited(sh));
+    edge.on('drag', e => { const r = map.distance(L.latLng(sh.center.lat, sh.center.lon), e.target.getLatLng()); sh.radius = Math.max(10, Math.round(r)); sh.layer.setRadius(sh.radius); });
+    edge.on('dragend', () => { edge.setLatLng(edgeLL()); shapeEdited(sh); });
+    H.push(ctr, edge);
+    return;
+  }
+  const pts = sh.latlngs;
+  pts.forEach((p, i) => {
+    const v = L.marker([p.lat, p.lon], { icon: handleIcon('sh-vtx', big), draggable: true, zIndexOffset: 2000 }).addTo(map);
+    v.on('drag', e => { const q = e.target.getLatLng(); pts[i] = { lat: +q.lat.toFixed(6), lon: +q.lng.toFixed(6) }; sh.layer.setLatLngs(pts.map(a => [a.lat, a.lon])); });
+    v.on('dragend', () => { shapeEdited(sh); buildShapeHandles(sh); });
+    v.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      if (pts.length <= 3){ toast('An area needs at least 3 corners.'); return; }
+      pts.splice(i, 1); shapeEdited(sh); buildShapeHandles(sh);
+    });
+    H.push(v);
+    const q = pts[(i + 1) % pts.length];
+    const mid = L.marker([(p.lat + q.lat)/2, (p.lon + q.lon)/2], { icon: handleIcon('sh-mid', small), draggable: true, zIndexOffset: 1900 }).addTo(map);
+    const insertAt = i + 1;
+    let inserted = false;
+    mid.on('dragstart', () => { pts.splice(insertAt, 0, { lat: (p.lat+q.lat)/2, lon: (p.lon+q.lon)/2 }); inserted = true; });
+    mid.on('drag', e => { if (!inserted) return; const r = e.target.getLatLng(); pts[insertAt] = { lat: +r.lat.toFixed(6), lon: +r.lng.toFixed(6) }; sh.layer.setLatLngs(pts.map(a => [a.lat, a.lon])); });
+    mid.on('dragend', () => { shapeEdited(sh); buildShapeHandles(sh); });
+    mid.on('click', e => { L.DomEvent.stopPropagation(e); if (inserted) return; pts.splice(insertAt, 0, { lat: +((p.lat+q.lat)/2).toFixed(6), lon: +((p.lon+q.lon)/2).toFixed(6) }); shapeEdited(sh); buildShapeHandles(sh); });
+    H.push(mid);
+  });
+}
+function endShapeEdit(silent){
+  if (!shapeEdit) return;
+  const sh = shapes[shapeEdit.uid];
+  clearShapeHandles();
+  shapeEdit = null;
+  if (sh && sh.layer) sh.layer.setStyle({ dashArray: null, weight: 3 });
+  document.getElementById('shapeEditBar').style.display = 'none';
+  if (!silent && sh) toast(`“${sh.name}” updated.`);
+}
+document.getElementById('shapeEditDone').addEventListener('click', () => endShapeEdit());
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && shapeEdit && !isTyping(e)) endShapeEdit(); });
+map.on('click', () => { if (shapeEdit && !mapClickOwned()) endShapeEdit(); });
 function shapeCot(sh, tm){
   const stroke = argbInt(sh.color);
   const fill = (0x45000000 | parseInt(sh.color.slice(1), 16)) | 0;   // same colour, ~27% alpha
