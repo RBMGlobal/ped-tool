@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.28 (beta layout) · 6 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.28 (beta layout + IPB) · 6 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -283,6 +283,7 @@
       <li><a href="#imagery"><span class="n">08</span><span>Imagery overlays</span></a></li>
       <li><a href="#select"><span class="n">09</span><span>Select &amp; bulk edit</span></a></li>
       <li><a href="#export"><span class="n">10</span><span>Exporting to TAK</span></a></li>
+      <li><a href="#ipb"><span class="n">10a</span><span>IPB overlay (beta)</span></a></li>
       <li><a href="#app"><span class="n">11</span><span>Web link &amp; app</span></a></li>
       <li><a href="#opsec"><span class="n">12</span><span>What leaves the device</span></a></li>
     </ol>
@@ -1134,6 +1135,31 @@
       </div>
     </section>
 
+    <section id="ipb">
+      <h2><span class="num">10a</span><span>IPB overlay — beta</span></h2>
+      <hr class="h2rule">
+      <p>The <span class="ui">IPB</span> menu draws intelligence preparation of the environment to <b>NATO APP-6D</b> (STANAG 2019). Every graphic you place is a real symbol — a 20-digit symbol code, its control points and its amplifiers (designation, date-time groups) — drawn by the same renderer the US Army's Mission Command software uses, which ships inside this file. Nothing is fetched; nothing leaves the device.</p>
+      <h3>The four steps</h3>
+      <p>The section is organised the way the process is, and each step offers only the graphics that belong to it:</p>
+      <table>
+        <tr><th>Step</th><th>What you draw</th></tr>
+        <tr><td><b>1 Define</b></td><td>Area of operations, area of interest, boundaries (with the unit on each side), phase lines.</td></tr>
+        <tr><td><b>2 Describe</b></td><td>The MCOO — restricted terrain single-hatched, severely restricted double-hatched (ATP 2-01.3 table 4-4); obstacle belts, zones and lines, minefields, mined areas, abatis, gaps, fords, roadblocks; avenues of approach and mobility corridors as axis arrows; key terrain; observation posts and checkpoints; plain labelled areas for cover, concealment and civil (ASCOPE) considerations.</td></tr>
+        <tr><td><b>3 Evaluate</b></td><td>The threat template: hostile units (infantry, motorised, armour, reconnaissance, anti-tank, artillery, mortar, air defence, engineer, special forces, sniper, headquarters) with echelon; equipment (armoured and utility vehicles, known insurgent vehicle, IED, booby trap, land mine, weapon system); assembly areas, battle positions, strong points, attack positions, ambushes, FLOT and line of contact.</td></tr>
+        <tr><td><b>4 COAs</b></td><td>Situation and event templates: axes of advance (main and supporting) and directions of attack, objectives, engagement areas, named and target areas of interest, decision points, limits of advance, lines of departure, infiltration lanes.</td></tr>
+      </table>
+      <p>The search box reaches the <b>whole catalogue</b> — 619 control measures and every land unit and equipment symbol — for anything the core list leaves out.</p>
+      <h3>Drawing</h3>
+      <p>Pick a graphic, then click its points on the map. The standard's own rules apply: an NAI needs at least three points, an ambush exactly three (the two ends, then the direction), a bridge or gap four, a point symbol one. <span class="ui">Finish</span> enables once the minimum is met; <kbd>Enter</kbd> finishes, <kbd>Esc</kbd> cancels. A card opens for the designation and amplifiers. <b>Type just the number for NAI, TAI, PL, OBJ, EA and DP</b> — the symbol adds its own prefix. Boundaries take a unit on each side; axes and lines can take from/to date-time groups.</p>
+      <p>Colour is doctrinal and not yours to choose: hostile red, friendly black, obstacles green. Change a graphic's affiliation on its card and it recolours. Everything redraws at every zoom because arrowheads and wave patterns are scale-dependent.</p>
+      <h3>Overlays</h3>
+      <p>Each step has an overlay, and you can add more — a second COA, say. New graphics go into the <span class="ui">active</span> overlay of the current step; a graphic can be moved between overlays from its card. Tick to show or hide, click the name to rename, click a graphic in the list to jump to it.</p>
+      <h3>Export</h3>
+      <p>Cursor-on-Target has no type for tactical graphics, so each overlay exports in three lanes: <b>threat units and equipment</b> as proper CoT unit types (a hostile infantry company is <code>a-h-G-U-C-I</code>); <b>point control measures</b> — decision point, key terrain, checkpoint — as spot markers carrying the APP-6 icon as an attachment; <b>lines and areas</b> as the renderer's own strokes, as ATAK drawings, so ATAK shows the same picture. An NAI arrives as a box named <code>NAI 3</code>; an axis of advance arrives as its arrow outline with its label placed where the standard places it. <span class="ui">KML</span> carries the same geometry for GRG overlays and Google Earth.</p>
+      <div class="note note--ops"><b>What is baked and what is not.</b> Lines and areas are exported at the zoom you are looking at, so an arrowhead is the size you see. Zoom to how you want it read in ATAK, then export. The project file stores the <i>source</i> — code, points, amplifiers — and never the rendering, so it re-draws perfectly anywhere. ATAK cannot hatch: MCOO terrain arrives as a translucent brown fill with its class in the label.</div>
+      <div class="note"><b>What this section does not do.</b> It draws what you decide. It does not classify terrain, place units for you, or generate courses of action.</div>
+    </section>
+
     <section id="app">
       <h2><span class="num">11</span><span>The web link &amp; the Android app</span></h2>
       <hr class="h2rule">
@@ -1214,6 +1240,7 @@
             <tr><td>Hillshade relief</td><td>Esri tiles</td><td>The map area you are looking at</td></tr>
             <tr><td>Elevation profile</td><td class="mono">opentopodata.org</td><td>The sampled coordinates of the line</td></tr>
             <tr><td><span class="ui">Read image</span> (OCR)</td><td>Nothing — runs on this device</td><td>Nothing; the photo never leaves the device</td></tr>
+            <tr><td><span class="ui">IPB overlay</span> (APP-6D renderer)</td><td>Nothing — the renderer ships inside the file and runs on this device</td><td>Nothing; graphics, designations and notes stay in the project</td></tr>
             <tr><td>Open in Google Maps</td><td>Google Maps</td><td>That one coordinate, when you click the link</td></tr>
           </tbody>
         </table>
