@@ -508,6 +508,22 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
 #ipbProps textarea { min-height: 56px; resize: vertical; }
 #ipbProps .ipb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #ipbP_code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px; color: var(--muted); margin-top: 8px; }
+/* ---- phase 2/3 */
+.ipb-help { border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; font-size: 12px; margin-top: 4px; }
+.ipb-help-row { display: flex; gap: 6px; margin-top: 5px; align-items: flex-end; }
+.ipb-help-row label { flex: 1; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.ipb-help-row input { width: 100%; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--page); color: var(--ink-1); }
+#ipbTable { display: none; position: fixed; inset: 0; z-index: 3200; background: rgba(10,12,16,.45); align-items: center; justify-content: center; }
+#ipbTable .ipb-tablecard { width: min(1100px, 96vw); max-height: 90vh; display: flex; flex-direction: column; }
+.ipb-tablewrap { overflow: auto; flex: 1; min-height: 120px; margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; }
+.ipb-tablewrap table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.ipb-tablewrap th { text-align: left; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 6px 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
+.ipb-tablewrap td { padding: 3px 4px; border-bottom: 1px solid var(--hairline); vertical-align: top; }
+.ipb-tablewrap td input, .ipb-tablewrap td select { width: 100%; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--ink-1); }
+.ipb-tablewrap td input:hover, .ipb-tablewrap td select:hover { border-color: var(--border); }
+.ipb-tablewrap td input:focus, .ipb-tablewrap td select:focus { border-color: var(--accent); outline: none; background: var(--page); }
+.ipb-t-del { width: 28px; } .ipb-t-del button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.ipb-t-del button:hover { color: #d03b3b; }
 </style>
 <body>
 <header>
@@ -709,6 +725,37 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
     <div id="ipbPick"></div>
     <div class="subhead" style="display:flex;align-items:center;gap:8px">Overlays for this step <button type="button" id="ipbNewOv" class="lydel" style="font-size:12px;margin-left:auto" title="Add another overlay for this step — a second COA, for instance">+ New overlay</button></div>
     <div id="ipbOverlays"></div>
+    <div class="subhead">Staff tables</div>
+    <div id="ipbTables" class="basemap-row bm-grid">
+      <button type="button" data-t="event" title="NAIs, indicators, time windows, the DP each one feeds">Event matrix</button>
+      <button type="button" data-t="dsm" title="Decision points, triggers, the NAI/TAI they watch, the action">Decision support</button>
+      <button type="button" data-t="terrain" title="Terrain features and their effect on threat and friendly operations">Terrain effects</button>
+      <button type="button" data-t="weather" title="Conditions, periods, effects on threat, friendly and sensors">Weather effects</button>
+    </div>
+    <div class="subhead">Brief</div>
+    <div class="basemap-row">
+      <button type="button" id="ipbAcetate" title="Everything visible as an overlay sheet: register marks with grid references, scale bar, title block, legend — PNG">Overlay sheet (PNG)</button>
+      <button type="button" id="ipbBrief" title="A printable page: the sheet and every filled-in table — print to PDF">Print brief</button>
+    </div>
+    <div class="subhead">Helpers — data, not decisions</div>
+    <div class="ipb-help">
+      <b>Time-phase lines</b> along an axis
+      <select id="ipbTplAxis" class="bulksel"><option value="">— draw an axis or line first —</option></select>
+      <div class="ipb-help-row">
+        <label>km/h <input id="ipbTplRate" type="number" value="20" min="1" step="1"></label>
+        <label>every h <input id="ipbTplEvery" type="number" value="1" min="0.25" step="0.25"></label>
+        <label>line km <input id="ipbTplLen" type="number" value="2" min="0.2" step="0.5"></label>
+      </div>
+      <div class="ipb-help-row"><label style="flex:1">start DTG <input id="ipbTplStart" type="text" placeholder="140600ZSEP26 (optional)" autocomplete="off" spellcheck="false"></label><button type="button" id="ipbTplGo" class="toolbtn" style="margin:0;flex:none;width:auto">Place lines</button></div>
+      <div class="addhint" style="margin-top:2px">Phase lines are placed perpendicular to the axis at rate × interval, labelled TPL +1 h, +2 h… or with the DTG if you give a start. The rate is yours — ATP 2-01.3 appendix B has planning figures by terrain.</div>
+      <b style="display:block;margin-top:8px">Slope bands</b> — thresholds (%) for the shading
+      <div class="ipb-help-row">
+        <label>band 1 <input id="ipbSlope1" type="number" value="10" min="0" step="1"></label>
+        <label>band 2 <input id="ipbSlope2" type="number" value="30" min="0" step="1"></label>
+        <label>band 3 <input id="ipbSlope3" type="number" value="45" min="0" step="1"></label>
+      </div>
+      <div class="addhint" style="margin-top:2px">Pick <i>Slope bands</i> under step 2 and draw a box. 576 elevation samples from the same service as the elevation profile (declared in Help &amp; OPSEC); yellow, orange and red above each threshold. Intervisibility is there too: observer, then target.</div>
+    </div>
     <div class="addhint">Each overlay exports on its own: <b>TAK</b> gives a data package where lines and areas are the doctrinal strokes as drawings, point symbols are spot markers with the APP-6 icon attached, and threat units are proper CoT unit types. <b>KML</b> carries the same geometry for GRG overlays. Both bake arrowheads at the zoom you export at.</div>
     </details>
 
@@ -871,6 +918,17 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
           <button class="toolbtn danger" id="ipbP_del" type="button">Delete</button>
           <button class="toolbtn" id="ipbP_cancel" type="button">Cancel</button>
           <button class="toolbtn primary" id="ipbP_ok" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+    <div id="ipbTable">
+      <div class="destcard ipb-tablecard">
+        <div class="dest-title" id="ipbTableTitle">Table</div>
+        <div class="ipb-tablewrap"><table><thead id="ipbTableHead"></thead><tbody id="ipbTableBody"></tbody></table></div>
+        <div class="dest-btns">
+          <button class="toolbtn" id="ipbTableAdd" type="button">+ Row</button>
+          <button class="toolbtn" id="ipbTableCsv" type="button">CSV</button>
+          <button class="toolbtn primary" id="ipbTableClose" type="button">Done</button>
         </div>
       </div>
     </div>
@@ -6286,6 +6344,7 @@ function infoOf(it){ const c = CAT.find(c => c.k === it.k); if (!c || !c.ss || !
 function geomOf(it){
   const c = CAT.find(c => c.k === it.k) || {};
   if (c.kind === 'mcoo' || c.kind === 'free') return { geom:'area', min:3, max:1e9 };
+  if (c.kind && KINDS[c.kind]) return KINDS[c.kind].geom;
   const info = infoOf(it);
   if (!info) return { geom: c.ss === 25 ? 'area' : 'point', min: c.ss === 25 ? 3 : 1, max: c.ss === 25 ? 1e9 : 1 };
   const g = String(info.getGeometry() || 'point').toLowerCase();
@@ -6299,7 +6358,8 @@ function modsAllowed(it){
 }
 
 /* ------------------------------------------------------------------ state -------------- */
-const IPB = { overlays: [], seq: 0, active: {} };    // active[step] = overlay id
+const IPB = { overlays: [], seq: 0, active: {}, tables: {} };    // active[step] = overlay id
+const KINDS = {};        // custom item kinds registered by later modules: { geom, draw(it)->layers, cot(it,tm)->items, kml(it)->placemarks, afterFinish(it) }
 window.IPB = IPB;
 const gfx = {};                                        // uid -> { layers: [L.Layer] }
 let group = null;                                      // one Leaflet group for all IPB graphics
@@ -6371,7 +6431,9 @@ function drawItem(it){
   const o = overlayOf(it.uid); if (!o || !o.visible) return;
   const c = CAT.find(c => c.k === it.k) || {}; const layers = [];
   const onClick = e => { if (draw) return; L.DomEvent.stopPropagation(e); openProps(it.uid); };
-  if (c.kind === 'mcoo'){
+  if (c.kind && KINDS[c.kind]){
+    (KINDS[c.kind].draw(it, onClick) || []).forEach(l => layers.push(l));
+  } else if (c.kind === 'mcoo'){
     const m = MCOO[it.cls] || MCOO.restricted;
     const poly = L.polygon(it.pts, { color: m.fill, weight: 1.5, fillOpacity: 1, fillColor: 'url(#' + m.pat + ')', className: 'ipb-mcoo' }).on('click', onClick);
     layers.push(poly);
@@ -6453,6 +6515,7 @@ function finishDraw(){
   o.items.push(it);
   const fin = draw; cancelDraw();
   drawItem(it); renderOverlayList(); changed();
+  if (c.kind && KINDS[c.kind] && KINDS[c.kind].afterFinish) { KINDS[c.kind].afterFinish(it); return; }
   openProps(it.uid, true);
 }
 function cancelDraw(){
@@ -6472,6 +6535,7 @@ function openProps(uid, fresh){
   const mo = document.getElementById('ipbProps');
   document.getElementById('ipbPropsTitle').textContent = c.n + (fresh ? ' — added' : '');
   const allowed = c.kind ? ['T'] : modsAllowed(it);
+  const custom = c.kind && KINDS[c.kind];
   const show = (id, on) => { document.getElementById(id).style.display = on ? '' : 'none'; };
   show('ipbP_T1', allowed.includes('T1')); show('ipbP_W', allowed.includes('W')); show('ipbP_W1', allowed.includes('W1'));
   show('ipbP_aff', !c.kind); show('ipbP_ech', c.ss === 10);
@@ -6484,7 +6548,7 @@ function openProps(uid, fresh){
   document.getElementById('ipbP_notes').value = it.notes || '';
   const sel = document.getElementById('ipbP_ov'); sel.innerHTML = '';
   IPB.overlays.forEach(o => { const op = document.createElement('option'); op.value = o.id; op.textContent = `${o.step}. ${o.name}`; if (o.items.includes(it)) op.selected = true; sel.appendChild(op); });
-  document.getElementById('ipbP_code').textContent = c.kind ? (c.kind === 'mcoo' ? 'MCOO — ATP 2-01.3 table 4-4' : 'free area') : 'APP-6D ' + sidcOf(it);
+  document.getElementById('ipbP_code').textContent = custom ? (KINDS[c.kind].describe ? KINDS[c.kind].describe(it) : c.n) : c.kind ? (c.kind === 'mcoo' ? 'MCOO — ATP 2-01.3 table 4-4' : 'free area') : 'APP-6D ' + sidcOf(it);
   mo.style.display = 'flex';
   document.getElementById('ipbP_Tin').focus();
 }
@@ -6586,11 +6650,11 @@ function setStep(s){
 
 /* ------------------------------------------------------------------ persistence -------- */
 function serialize(){
-  return { seq: IPB.seq, active: IPB.active,
+  return { seq: IPB.seq, active: IPB.active, tables: IPB.tables,
     overlays: IPB.overlays.map(o => ({ id: o.id, step: o.step, name: o.name, visible: o.visible,
-      items: o.items.map(i => ({ uid: i.uid, k: i.k, aff: i.aff, ech: i.ech || undefined, cls: i.cls || undefined, pts: i.pts, mods: i.mods || {}, notes: i.notes || '' })) })) };
+      items: o.items.map(i => ({ uid: i.uid, k: i.k, aff: i.aff, ech: i.ech || undefined, cls: i.cls || undefined, pts: i.pts, mods: i.mods || {}, notes: i.notes || '', data: i.data || undefined })) })) };
 }
-function clearIPB(){ IPB.overlays.forEach(o => o.items.forEach(i => clearGfx(i.uid))); IPB.overlays = []; IPB.active = {}; renderOverlayList(); }
+function clearIPB(){ IPB.overlays.forEach(o => o.items.forEach(i => clearGfx(i.uid))); IPB.overlays = []; IPB.active = {}; IPB.tables = {}; renderOverlayList(); }
 function load(obj){
   clearIPB(); if (!obj) return;
   IPB.seq = Math.max(IPB.seq, +obj.seq || 0);
@@ -6601,12 +6665,13 @@ function load(obj){
       const c = CAT.find(c => c.k === I.k);
       if (!c && /^x_\d{8}$/.test(I.k)) CAT.push({ k: I.k, ss: +I.k.slice(2,4), e: I.k.slice(4), n: I.k.slice(2), steps:[1,2,3,4], aff: I.aff });
       else if (!c) return;
-      o.items.push({ uid: I.uid || newUid(I.k), k: I.k, aff: I.aff || '03', ech: I.ech, cls: I.cls, pts: I.pts, mods: I.mods || {}, notes: I.notes || '' });
+      o.items.push({ uid: I.uid || newUid(I.k), k: I.k, aff: I.aff || '03', ech: I.ech, cls: I.cls, pts: I.pts, mods: I.mods || {}, notes: I.notes || '', data: I.data });
       const m = String(I.uid || '').match(/\.(\d+)$/); if (m) IPB.seq = Math.max(IPB.seq, +m[1]);
     });
     IPB.overlays.push(o);
   });
   IPB.active = obj.active || {};
+  IPB.tables = (obj.tables && typeof obj.tables === 'object') ? obj.tables : {};
   renderOverlayList();
   if (IPB.overlays.some(o => o.items.length)) ipbInit().then(redrawAll).catch(() => {});
 }
@@ -6627,7 +6692,13 @@ if (typeof clearAll === 'function'){
 /* ------------------------------------------------------------------ export ------------- */
 function cotAff(it){ return AFF_COT[it.aff] || 'h'; }
 function unitCot(it){ const c = CAT.find(c => c.k === it.k) || {}; return `a-${cotAff(it)}-G-${c.cot || (c.ss === 15 ? 'E' : 'U')}`; }
-function labelOfItem(it){ const c = CAT.find(c => c.k === it.k) || { n: it.k }; return (it.mods?.T ? it.mods.T + ' — ' : '') + c.n; }
+const LABEL_PREFIX = { nai:'NAI', tai:'TAI', dp:'DP', obj:'OBJ', ea:'EA', pl:'PL', ao:'AO', asm:'AA', cp:'CP', kt:'KT', bp:'BP', sp:'SP', atkp:'ATK' };
+// the name a reader would use: "NAI 3", "PL BLUE", "AA1 — Axis of advance"
+function labelOfItem(it){
+  const c = CAT.find(c => c.k === it.k) || { n: it.k }; const T = it.mods?.T;
+  if (!T) return c.n;
+  return LABEL_PREFIX[it.k] ? LABEL_PREFIX[it.k] + ' ' + T : T + ' — ' + c.n;
+}
 function markerCot(uid, lat, lon, callsign, colorHex, type, tm, remarks, iconPath){
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <event version="2.0" uid="${esc(euid(uid))}" type="${type}" how="h-g-i-g-o" time="${tm.t}" start="${tm.t}" stale="${tm.s}">
@@ -6694,7 +6765,9 @@ async function overlayCotItems(o, tm){
   for (const it of o.items){
     const c = CAT.find(c => c.k === it.k) || {};
     const g = geomOf(it);
-    if (c.kind === 'mcoo'){
+    if (c.kind && KINDS[c.kind]){
+      if (KINDS[c.kind].cot) (KINDS[c.kind].cot(it, tm, { lineCot, markerCot, rem: rem(it) }) || []).forEach(x => items.push(x));
+    } else if (c.kind === 'mcoo'){
       const m = MCOO[it.cls] || MCOO.restricted;
       items.push({ folder: it.uid, uid: euid(it.uid), xml: lineCot(it.uid, it.pts.map(p => [p[1], p[0]]), m.fill, true, m.fill, (it.mods?.T ? it.mods.T + ' — ' : '') + m.label, tm, rem(it)) });
     } else if (c.kind === 'free'){
@@ -6753,7 +6826,9 @@ async function exportOverlayKML(id){
   const coordStr = cs => cs.map(c => `${c[0]},${c[1]},0`).join(' ');
   for (const it of o.items){
     const c = CAT.find(c => c.k === it.k) || {}; const g = geomOf(it); const name = esc(labelOfItem(it));
-    if (c.kind === 'mcoo' || c.kind === 'free'){
+    if (c.kind && KINDS[c.kind]){
+      if (KINDS[c.kind].kml) (KINDS[c.kind].kml(it, { kmlColor, coordStr, esc }) || []).forEach(x => pm.push(x));
+    } else if (c.kind === 'mcoo' || c.kind === 'free'){
       const col = c.kind === 'mcoo' ? '#7a4a00' : '#333333'; const m = c.kind === 'mcoo' ? (MCOO[it.cls] || MCOO.restricted) : null;
       pm.push(`<Placemark><name>${m ? esc((it.mods?.T ? it.mods.T + ' — ' : '') + m.label) : name}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>2</width></LineStyle><PolyStyle><color>${kmlColor(col, m && it.cls === 'severe' ? '80' : '55')}</color></PolyStyle></Style><Polygon><outerBoundaryIs><LinearRing><coordinates>${coordStr(it.pts.concat([it.pts[0]]).map(p => [p[1], p[0]]))}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`);
     } else if (g.geom === 'point'){
@@ -6801,9 +6876,356 @@ function wire(){
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 
 // exposed for tests and for the shell
-window.ipb = { CAT, IPB, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, setStep,
-               serialize, load, redrawAll, exportOverlayTAK, exportOverlayKML, sidcOf, geomOf, overlayCotItems, ensureOverlay,
+window.ipb = { CAT, IPB, KINDS, STEP_NAMES, MCOO, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, setStep,
+               serialize, load, redrawAll, drawItem, exportOverlayTAK, exportOverlayKML, sidcOf, geomOf, overlayCotItems, ensureOverlay,
+               renderGeo, renderSvg, renderPicker, renderOverlayList, itemOf, overlayOf, overlayById, newUid, changed, labelOfItem, zoomTo,
                get renderer(){ return R; }, get draw(){ return draw; }, get step(){ return curStep; } };
+})();
+
+/* =====================================================================================
+   IPB overlay — phases 2 and 3.
+
+   Phase 2: the staff tables that sit beside the graphics (event matrix, decision support
+   matrix, terrain and weather effects), linked to the NAIs, TAIs and DPs on the map; and the
+   overlay as an acetate — a PNG with register marks, scale, title block and legend — plus a
+   printable brief.
+
+   Phase 3: data helpers. Time-phase lines along an axis from a rate you enter;
+   intervisibility between two clicks; slope bands over an area at thresholds you set. They
+   use the elevation service the Elevation profile already uses, and present numbers — they
+   do not decide what is restricted or what the threat will do.
+   ===================================================================================== */
+(function(){
+'use strict';
+const A = window.ipb, IPB = A.IPB, CAT = A.CAT, KINDS = A.KINDS;
+
+/* ------------------------------------------------------------------ tables ------------- */
+const TABLES = {
+  event:   { name: 'Event matrix', cols: [
+    { k:'nai', l:'NAI', type:'link', kinds:['nai'] }, { k:'ind', l:'Indicator' }, { k:'from', l:'Earliest (DTG)', w:'9em' }, { k:'to', l:'Latest (DTG)', w:'9em' },
+    { k:'coa', l:'Confirms / denies' }, { k:'dp', l:'DP', type:'link', kinds:['dp'] }, { k:'asset', l:'Collection asset' } ] },
+  dsm:     { name: 'Decision support matrix', cols: [
+    { k:'dp', l:'DP', type:'link', kinds:['dp'] }, { k:'decision', l:'Decision' }, { k:'crit', l:'Trigger / criteria' },
+    { k:'area', l:'NAI / TAI', type:'link', kinds:['nai','tai'] }, { k:'action', l:'Action / asset' }, { k:'nlt', l:'No later than', w:'9em' } ] },
+  terrain: { name: 'Terrain effects matrix', cols: [
+    { k:'feat', l:'Terrain feature / area' }, { k:'where', l:'Graphic', type:'link', kinds:['mcooR','mcooS','aa','mc','kt','ai','obelt','ozone','oline'] },
+    { k:'threat', l:'Effect on threat' }, { k:'friendly', l:'Effect on friendly' } ] },
+  weather: { name: 'Weather effects matrix', cols: [
+    { k:'cond', l:'Condition' }, { k:'period', l:'Period', w:'9em' }, { k:'threat', l:'Effect on threat' }, { k:'friendly', l:'Effect on friendly' }, { k:'sensors', l:'Effect on sensors / UAV' } ] },
+};
+let curTable = null;
+function tableRows(key){ IPB.tables[key] = IPB.tables[key] || []; return IPB.tables[key]; }
+function linkOptions(kinds){
+  const out = [];
+  IPB.overlays.forEach(o => o.items.forEach(it => { if (kinds.includes(it.k)) out.push({ uid: it.uid, label: A.labelOfItem(it) + ' · ' + o.name }); }));
+  return out;
+}
+function openTable(key){
+  curTable = key; const T = TABLES[key]; const rows = tableRows(key);
+  document.getElementById('ipbTableTitle').textContent = T.name;
+  const head = document.getElementById('ipbTableHead'); head.innerHTML = '<tr>' + T.cols.map(c => `<th${c.w ? ` style="width:${c.w}"` : ''}>${esc(c.l)}</th>`).join('') + '<th></th></tr>';
+  const body = document.getElementById('ipbTableBody'); body.innerHTML = '';
+  rows.forEach((r, i) => body.appendChild(rowEl(T, r, i)));
+  if (!rows.length) body.innerHTML = `<tr><td colspan="${T.cols.length + 1}" class="addhint">No rows yet — add one.</td></tr>`;
+  document.getElementById('ipbTable').style.display = 'flex';
+}
+function rowEl(T, r, i){
+  const tr = document.createElement('tr');
+  T.cols.forEach(c => {
+    const td = document.createElement('td');
+    if (c.type === 'link'){
+      const sel = document.createElement('select'); sel.innerHTML = '<option value="">—</option>';
+      linkOptions(c.kinds).forEach(o => { const op = document.createElement('option'); op.value = o.uid; op.textContent = o.label; if (r[c.k] === o.uid) op.selected = true; sel.appendChild(op); });
+      if (r[c.k] && !sel.value){ const op = document.createElement('option'); op.value = r[c.k]; op.textContent = '(deleted graphic)'; op.selected = true; sel.appendChild(op); }
+      sel.addEventListener('change', () => { r[c.k] = sel.value; A.changed(); });
+      td.appendChild(sel);
+    } else {
+      const inp = document.createElement('input'); inp.type = 'text'; inp.value = r[c.k] || ''; inp.spellcheck = true;
+      inp.addEventListener('change', () => { r[c.k] = inp.value; A.changed(); });
+      td.appendChild(inp);
+    }
+    tr.appendChild(td);
+  });
+  const td = document.createElement('td'); td.className = 'ipb-t-del';
+  const del = document.createElement('button'); del.type = 'button'; del.textContent = '✕'; del.title = 'Delete row';
+  del.addEventListener('click', () => { const rows = tableRows(curTable); rows.splice(i, 1); A.changed(); openTable(curTable); });
+  td.appendChild(del); tr.appendChild(td);
+  return tr;
+}
+function addRow(){ const rows = tableRows(curTable); rows.push({}); A.changed(); openTable(curTable); const inp = document.querySelector('#ipbTableBody tr:last-child input, #ipbTableBody tr:last-child select'); if (inp) inp.focus(); }
+function closeTable(){ document.getElementById('ipbTable').style.display = 'none'; curTable = null; }
+function linkLabel(uid){ const it = A.itemOf(uid); return it ? A.labelOfItem(it) : (uid ? '(deleted)' : ''); }
+function tableCsv(key){
+  const T = TABLES[key]; const rows = tableRows(key);
+  const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  return [T.cols.map(c => q(c.l)).join(',')].concat(rows.map(r => T.cols.map(c => q(c.type === 'link' ? linkLabel(r[c.k]) : r[c.k])).join(','))).join('\r\n');
+}
+function exportTableCsv(){ const key = curTable; download(new Blob(['﻿' + tableCsv(key)], { type: 'text/csv' }), 'IPB_' + key + '_' + fdate() + '.csv', { done: TABLES[key].name + ' exported as CSV.' }); }
+function tableHtml(key){
+  const T = TABLES[key]; const rows = tableRows(key); if (!rows.length) return '';
+  return `<h3>${esc(T.name)}</h3><table><thead><tr>${T.cols.map(c => `<th>${esc(c.l)}</th>`).join('')}</tr></thead><tbody>` +
+    rows.map(r => `<tr>${T.cols.map(c => `<td>${esc(c.type === 'link' ? linkLabel(r[c.k]) : (r[c.k] || ''))}</td>`).join('')}</tr>`).join('') + '</tbody></table>';
+}
+
+/* ------------------------------------------------------------------ acetate ------------ */
+// Everything visible, drawn as an overlay sheet: no basemap, register marks with grid
+// references at the corners, a scale bar, a title block and a legend. Sized from the current
+// view so the reader gets what they are looking at, at print resolution.
+const R3857 = L.CRS.EPSG3857;
+async function buildAcetate(opts = {}){
+  await ipbInit();
+  const W = opts.width || 2200, PAD = 90, TITLE_H = 150;
+  const b = map.getBounds();
+  const pTL = R3857.project(b.getNorthWest()), pBR = R3857.project(b.getSouthEast());
+  // Leaflet's projection puts y northwards; the sheet has y downwards
+  const mw = pBR.x - pTL.x, mh = pTL.y - pBR.y;
+  const H = Math.round(W * mh / mw);
+  const sx = W / mw;
+  const X = lon => PAD + (R3857.project(L.latLng(0, lon)).x - pTL.x) * sx;
+  const Y = lat => PAD + (pTL.y - R3857.project(L.latLng(lat, 0)).y) * sx;
+  const items = []; IPB.overlays.forEach(o => { if (o.visible) o.items.forEach(it => items.push({ it, o })); });
+  const frame = { size: { x: W, y: H }, bbox: [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()].join(',') };
+  let g = '', legend = [];
+  const pathOf = coords => coords.map((c, i) => (i ? 'L' : 'M') + X(c[0]).toFixed(1) + ' ' + Y(c[1]).toFixed(1)).join(' ');
+  const text = (x, y, t, size, anchor, weight) => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="Arial,Helvetica,sans-serif" font-size="${size}" font-weight="${weight || 700}" text-anchor="${anchor || 'middle'}" stroke="#fff" stroke-width="4" paint-order="stroke" fill="#111">${esc(t)}</text>`;
+  for (const { it, o } of items){
+    const c = CAT.find(c => c.k === it.k) || {}; const gm = A.geomOf(it);
+    legend.push(A.labelOfItem(it) + (it.mods?.T && A.labelOfItem(it) !== it.mods.T + ' — ' + c.n ? ' — ' + c.n : '') + '  (' + o.name + ')');
+    if (c.kind && KINDS[c.kind]){ if (KINDS[c.kind].svg) g += KINDS[c.kind].svg(it, { X, Y, pathOf, text, sx }); continue; }
+    if (c.kind === 'mcoo' || c.kind === 'free'){
+      const m = c.kind === 'mcoo' ? A.MCOO[it.cls] || A.MCOO.restricted : null;
+      const d = pathOf(it.pts.map(p => [p[1], p[0]])) + ' Z';
+      g += `<path d="${d}" fill="${m ? `url(#${m.pat === 'ipbHatch2' ? 'ah2' : 'ah1'})` : 'rgba(0,0,0,.06)'}" stroke="${m ? '#7a4a00' : '#333'}" stroke-width="3"${m ? '' : ' stroke-dasharray="12 8"'}/>`;
+      const ctr = L.latLngBounds(it.pts).getCenter();
+      g += text(X(ctr.lng), Y(ctr.lat), (it.mods?.T ? it.mods.T + ' · ' : '') + (m ? m.label : ''), 26);
+      continue;
+    }
+    if (gm.geom === 'point'){
+      const s = A.renderSvg(it, 72);
+      const x = X(it.pts[0][1]) - s.cx, y = Y(it.pts[0][0]) - s.cy;
+      g += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})">${s.svg}</g>`;
+      continue;
+    }
+    let fc; try { fc = A.renderGeo(it, frame.size, frame.bbox); } catch(e){ continue; }
+    fc.features.forEach(f => {
+      const p = f.properties || {};
+      if (f.geometry.type === 'Point'){ if (p.label) g += text(X(f.geometry.coordinates[0]), Y(f.geometry.coordinates[1]), p.label, 26); return; }
+      const lines = f.geometry.type === 'MultiLineString' ? f.geometry.coordinates : f.geometry.type === 'LineString' ? [f.geometry.coordinates] : f.geometry.type === 'Polygon' ? f.geometry.coordinates : [];
+      lines.forEach(cs => { g += `<path d="${pathOf(cs)}${f.geometry.type === 'Polygon' ? ' Z' : ''}" fill="${f.geometry.type === 'Polygon' && p.fillColor ? p.fillColor : 'none'}" fill-opacity=".18" stroke="${p.strokeColor || p.lineColor || '#000'}" stroke-width="${(p.strokeWidth || 2) * 1.6}"${p.strokeDasharray ? ` stroke-dasharray="${p.strokeDasharray}"` : ''} stroke-linecap="square"/>`; });
+    });
+  }
+  // frame, register marks, scale, title block, legend
+  const gridRef = (lat, lon) => { const m = (typeof mgrsOf === 'function') ? mgrsOf({ lat, lon }) : '—'; return m !== '—' ? m : lat.toFixed(4) + ', ' + lon.toFixed(4); };
+  const corners = [[b.getNorth(), b.getWest(), PAD, PAD, 'start', PAD + 12, PAD - 20], [b.getNorth(), b.getEast(), PAD + W, PAD, 'end', PAD + W - 12, PAD - 20],
+                   [b.getSouth(), b.getWest(), PAD, PAD + H, 'start', PAD + 12, PAD + H + 40], [b.getSouth(), b.getEast(), PAD + W, PAD + H, 'end', PAD + W - 12, PAD + H + 40]];
+  let fr = `<rect x="${PAD}" y="${PAD}" width="${W}" height="${H}" fill="none" stroke="#111" stroke-width="2"/>`;
+  corners.forEach(([la, lo, x, y, an, tx, ty]) => { fr += `<path d="M${x-30} ${y}H${x+30}M${x} ${y-30}V${y+30}" stroke="#111" stroke-width="2"/><circle cx="${x}" cy="${y}" r="14" fill="none" stroke="#111" stroke-width="2"/>` + text(tx, ty, gridRef(la, lo), 22, an, 600); });
+  const mPerPx = map.distance(b.getSouthWest(), b.getSouthEast()) / W;
+  let barM = Math.pow(10, Math.floor(Math.log10(mPerPx * W / 4))); if (mPerPx * W / 4 / barM > 5) barM *= 5; else if (mPerPx * W / 4 / barM > 2) barM *= 2;
+  const barPx = barM / mPerPx;
+  fr += `<rect x="${PAD + 40}" y="${PAD + H - 60}" width="${barPx.toFixed(1)}" height="14" fill="#111"/><rect x="${PAD + 40}" y="${PAD + H - 60}" width="${(barPx/2).toFixed(1)}" height="14" fill="#fff" stroke="#111" stroke-width="2"/>` + text(PAD + 40 + barPx / 2, PAD + H - 70, barM >= 1000 ? (barM/1000) + ' km' : barM + ' m', 24);
+  const ovNames = [...new Set(items.map(x => x.o.name))].join(' · ') || 'IPB overlay';
+  const proj = (typeof PROJ !== 'undefined') ? PROJ : '';
+  const dtg = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z/, 'Z');
+  let tb = `<rect x="${PAD}" y="${PAD + H + 60}" width="${W}" height="${TITLE_H}" fill="#fff" stroke="#111" stroke-width="2"/>`;
+  tb += text(PAD + 24, PAD + H + 110, 'IPB OVERLAY — ' + ovNames, 36, 'start');
+  tb += text(PAD + 24, PAD + H + 160, `Project ${proj} · ${dtg} · NATO APP-6D · ${(mPerPx).toFixed(1)} m per pixel · SENSITIVE — handle per your security policy`, 22, 'start', 500);
+  tb += text(PAD + 24, PAD + H + 195, 'Register marks carry MGRS / lat-lon of the sheet corners. Register to the map before reading.', 20, 'start', 400);
+  const legX = PAD + W - 24; let ly = PAD + H + 100;
+  const legendTxt = legend.slice(0, 14); if (legend.length > 14) legendTxt.push(`… and ${legend.length - 14} more`);
+  legendTxt.forEach(t => { tb += text(legX, ly, t, 19, 'end', 500); ly += 24; });
+  const totalH = PAD + H + 60 + Math.max(TITLE_H, ly - (PAD + H + 60) + 20) + PAD;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W + 2 * PAD}" height="${totalH}" viewBox="0 0 ${W + 2 * PAD} ${totalH}">
+<defs><pattern id="ah1" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="14" stroke="#7a4a00" stroke-width="2.2"/></pattern>
+<pattern id="ah2" width="14" height="14" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="14" stroke="#7a4a00" stroke-width="2.2" transform="rotate(45 7 7)"/><line x1="0" y1="0" x2="0" y2="14" stroke="#7a4a00" stroke-width="2.2" transform="rotate(-45 7 7)"/></pattern></defs>
+<rect width="100%" height="100%" fill="#fff"/><g>${g}</g>${fr}${tb}</svg>`;
+  return { svg, w: W + 2 * PAD, h: totalH, count: items.length, names: ovNames };
+}
+async function svgToPng(svg, w, h){
+  const img = new Image(); const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h); URL.revokeObjectURL(url);
+  return new Promise(res => c.toBlob(res, 'image/png'));
+}
+async function exportAcetate(){
+  const a = await buildAcetate();
+  if (!a.count){ toast('Nothing visible to put on the sheet — draw something, or show an overlay.'); return; }
+  const blob = await svgToPng(a.svg, a.w, a.h);
+  download(blob, 'IPB_overlay_' + fdate() + '.png', { done: `Overlay sheet exported — ${a.count} graphic${a.count===1?'':'s'}, register marks at the corners.` });
+}
+async function printBrief(){
+  const a = await buildAcetate({ width: 1800 });
+  const tables = Object.keys(TABLES).map(tableHtml).join('');
+  const win = window.open('', '_blank');
+  if (!win){ toast('The browser blocked the print window — allow pop-ups for this page and try again.', 6000); return; }
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>IPB brief — ${esc(a.names)}</title>
+<style>body{font:13px/1.4 Arial,Helvetica,sans-serif;color:#111;margin:18mm}h1{font-size:20px;margin:0 0 4px}h3{font-size:14px;margin:18px 0 6px;letter-spacing:.06em;text-transform:uppercase}
+table{border-collapse:collapse;width:100%;page-break-inside:avoid}th,td{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top;font-size:12px}th{background:#eee}
+.sheet{width:100%;height:auto;border:1px solid #ccc;page-break-after:always}.sens{color:#b3261e;font-weight:700;letter-spacing:.08em}
+@media print{button{display:none}}</style></head><body>
+<p class="sens">SENSITIVE — HANDLE PER YOUR SECURITY POLICY</p><h1>IPB brief — ${esc(a.names)}</h1>
+<p>${esc(new Date().toUTCString())} · NATO APP-6D · drawn in PED</p><button onclick="print()">Print / save as PDF</button>
+<img class="sheet" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(a.svg)}">${tables || '<p>No tables filled in.</p>'}</body></html>`);
+  win.document.close();
+}
+
+/* ------------------------------------------------------------------ helpers ------------ */
+// --- time-phase lines: perpendicular phase lines along a line graphic at rate × interval
+function lineItems(){ const out = []; IPB.overlays.forEach(o => o.items.forEach(it => { const c = CAT.find(c => c.k === it.k) || {}; if (!c.kind && c.ss === 25 && it.pts.length >= 2 && A.geomOf(it).geom === 'line') out.push({ it, o }); })); return out; }
+function parseDtg(s){
+  const m = /^(\d{2})(\d{2})(\d{2})([A-Z])?\s*([A-Z]{3})?\s*(\d{2,4})?$/i.exec(String(s || '').trim()); if (!m) return null;
+  const now = new Date(); const mon = m[5] ? ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(m[5].toUpperCase()) : now.getUTCMonth();
+  const yr = m[6] ? (+m[6] < 100 ? 2000 + +m[6] : +m[6]) : now.getUTCFullYear();
+  return new Date(Date.UTC(yr, mon < 0 ? now.getUTCMonth() : mon, +m[1], +m[2], +m[3]));
+}
+function fmtDtg(d){ const p = n => String(n).padStart(2, '0'); const M = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getUTCMonth()]; return `${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}Z${M}${String(d.getUTCFullYear()).slice(2)}`; }
+function makeTpls(){
+  const uid = document.getElementById('ipbTplAxis').value; const rate = +document.getElementById('ipbTplRate').value; const every = +document.getElementById('ipbTplEvery').value;
+  const len = +document.getElementById('ipbTplLen').value || 2; const start = parseDtg(document.getElementById('ipbTplStart').value);
+  const it = A.itemOf(uid); if (!it || !(rate > 0) || !(every > 0)){ toast('Pick an axis and enter a rate and an interval.'); return; }
+  const path = it.pts.map(p => L.latLng(p[0], p[1]));
+  const total = path.slice(1).reduce((s, p, i) => s + map.distance(path[i], p), 0);
+  const step = rate * 1000 * every; if (step <= 0 || total < step * 0.5){ toast('That rate and interval put the first line beyond the end of the axis.'); return; }
+  const o = A.ensureOverlay(4); let n = 0;
+  for (let d = step, k = 1; d <= total + 1e-6; d += step, k++){
+    // walk to distance d
+    let acc = 0, seg = 0; while (seg < path.length - 1 && acc + map.distance(path[seg], path[seg + 1]) < d) { acc += map.distance(path[seg], path[seg + 1]); seg++; }
+    if (seg >= path.length - 1) break;
+    const a = path[seg], bb = path[seg + 1]; const segLen = map.distance(a, bb) || 1; const t = (d - acc) / segLen;
+    const mid = L.latLng(a.lat + (bb.lat - a.lat) * t, a.lng + (bb.lng - a.lng) * t);
+    // perpendicular in projected space
+    const pa = R3857.project(a), pb = R3857.project(bb); const dx = pb.x - pa.x, dy = pb.y - pa.y; const nrm = Math.hypot(dx, dy) || 1;
+    const px = -dy / nrm, py = dx / nrm; const pm = R3857.project(mid);
+    const half = len * 1000 / 2 / Math.cos(mid.lat * Math.PI / 180);   // metres → mercator units at this latitude
+    const p1 = R3857.unproject(L.point(pm.x + px * half, pm.y + py * half)), p2 = R3857.unproject(L.point(pm.x - px * half, pm.y - py * half));
+    const hrs = every * k; const lbl = start ? fmtDtg(new Date(start.getTime() + hrs * 3600e3)) : `+${hrs} h`;
+    o.items.push({ uid: A.newUid('pl'), k: 'pl', aff: it.aff || '03', pts: [[p1.lat, p1.lng], [p2.lat, p2.lng]], mods: { T: 'TPL ' + lbl }, notes: `Time-phase line — ${rate} km/h along ${A.labelOfItem(it)}, ${hrs} h from start.` });
+    n++;
+  }
+  A.redrawAll(); A.renderOverlayList(); A.changed();
+  toast(n ? `${n} time-phase line${n===1?'':'s'} added to “${o.name}” — ${rate} km/h every ${every} h.` : 'No lines fit on that axis at that rate.', 5000);
+}
+function refreshTplAxes(){
+  const sel = document.getElementById('ipbTplAxis'); if (!sel) return; const cur = sel.value; sel.innerHTML = '';
+  lineItems().forEach(({ it, o }) => { const op = document.createElement('option'); op.value = it.uid; op.textContent = A.labelOfItem(it) + ' · ' + o.name; sel.appendChild(op); });
+  if (!sel.children.length) sel.innerHTML = '<option value="">— draw an axis or line first —</option>';
+  if (cur) sel.value = cur;
+}
+
+// --- intervisibility: two clicks, the elevation profile between them, and whether A sees B
+KINDS.ivl = {
+  geom: { geom: 'line', min: 2, max: 2 },
+  draw(it, onClick){
+    const d = it.data; const out = [];
+    if (!d || !d.prof){ out.push(L.polyline(it.pts, { color: '#888', weight: 3, dashArray: '4 6' }).on('click', onClick)); return out; }
+    // green where the line of sight is clear of terrain, red where masked
+    const segs = []; let cur = null;
+    d.prof.forEach((p, i) => { const s = p.vis ? 'v' : 'm'; if (!cur || cur.s !== s){ cur = { s, pts: [] }; segs.push(cur); if (segs.length > 1) cur.pts.push(segs[segs.length - 2].pts.slice(-1)[0]); } cur.pts.push([p.lat, p.lon]); });
+    segs.forEach(sg => out.push(L.polyline(sg.pts, { color: sg.s === 'v' ? '#1b9e3a' : '#d62828', weight: 4 }).on('click', onClick)));
+    out.push(L.circleMarker(it.pts[0], { radius: 6, color: '#111', fillColor: '#fff', fillOpacity: 1, weight: 2 }).on('click', onClick));
+    out.push(L.marker(L.latLngBounds(it.pts).getCenter(), { interactive: false, icon: L.divIcon({ className: 'ipb-lbl', html: esc((it.mods?.T ? it.mods.T + ' · ' : '') + (d.visible ? 'VISIBLE' : 'MASKED at ' + (d.maskKm || 0).toFixed(1) + ' km')), iconSize: null }) }));
+    return out;
+  },
+  describe(it){ const d = it.data || {}; return d.prof ? `Intervisibility — ${d.visible ? 'target visible' : `masked; highest obstruction ${d.maskKm?.toFixed(1)} km out, ${d.needM} m more height needed`} · observer ${d.hObs} m, target ${d.hTgt} m · ${d.src}` : 'Intervisibility — fetching elevations…'; },
+  async afterFinish(it){
+    toast('Fetching the profile…', 4000);
+    try {
+      const rs = resampleLine(it.pts, 80);
+      const e = await fetchElevations(rs.pts);
+      const hObs = 2, hTgt = 2;
+      const z0 = e.elevs[0] + hObs, z1 = e.elevs[e.elevs.length - 1] + hTgt, total = rs.total || 1;
+      let visible = true, maskKm = 0, needM = 0;
+      const prof = rs.pts.map((p, i) => {
+        const los = z0 + (z1 - z0) * (rs.dist[i] / total); const ok = i === 0 || i === rs.pts.length - 1 || e.elevs[i] <= los;
+        if (!ok){ visible = false; const over = e.elevs[i] - los; if (over > needM){ needM = Math.ceil(over); maskKm = rs.dist[i] / 1000; } }
+        return { lat: p[0], lon: p[1], vis: ok };
+      });
+      // a masked point masks everything beyond it, as seen from the observer
+      let blocked = false; prof.forEach(p => { if (!p.vis) blocked = true; if (blocked) p.vis = false; });
+      it.data = { prof, visible, maskKm, needM, hObs, hTgt, src: e.src };
+      A.drawItem(it); A.renderOverlayList(); A.changed();
+      toast(visible ? 'Line of sight is clear.' : `Masked ${maskKm.toFixed(1)} km from the observer — the observer would need about ${needM} m more height.`, 6000);
+    } catch(err){ toast('Could not fetch elevations — ' + (err.message || err), 6000); }
+  },
+  cot(it, tm, h){ const d = it.data || {}; return [{ folder: it.uid, uid: euid(it.uid), xml: h.lineCot(it.uid, it.pts.map(p => [p[1], p[0]]), d.visible ? '#1b9e3a' : '#d62828', false, null, 'LOS ' + (it.mods?.T || '') + (d.prof ? (d.visible ? ' visible' : ' masked') : ''), tm, h.rem + '\n' + KINDS.ivl.describe(it), 3) }]; },
+  kml(it, h){ const d = it.data || {}; return [`<Placemark><name>LOS ${h.esc(it.mods?.T || '')} ${d.visible ? 'visible' : 'masked'}</name><Style><LineStyle><color>${h.kmlColor(d.visible ? '#1b9e3a' : '#d62828')}</color><width>3</width></LineStyle></Style><LineString><coordinates>${h.coordStr(it.pts.map(p => [p[1], p[0]]))}</coordinates></LineString></Placemark>`]; },
+  svg(it, s){ const d = it.data || {}; return `<path d="${s.pathOf(it.pts.map(p => [p[1], p[0]]))}" stroke="${d.visible ? '#1b9e3a' : '#d62828'}" stroke-width="5" fill="none"/>` + s.text(s.X(it.pts[1][1]), s.Y(it.pts[1][0]) - 14, 'LOS ' + (d.visible ? 'visible' : 'masked'), 22); },
+};
+
+// --- slope bands: an elevation grid over an area, shaded at thresholds you set
+KINDS.slope = {
+  geom: { geom: 'area', min: 3, max: 1e9 },
+  draw(it, onClick){
+    const d = it.data; const out = [];
+    const poly = L.polygon(it.pts, { color: '#5a3d8a', weight: 2, dashArray: '6 4', fillOpacity: 0 }).on('click', onClick); out.push(poly);
+    if (d && d.grid){
+      const img = slopeImage(d, it.pts);
+      out.push(L.imageOverlay(img, [[d.s, d.w], [d.n, d.e]], { opacity: .55, interactive: false }));
+      out.push(L.marker(poly.getBounds().getCenter(), { interactive: false, icon: L.divIcon({ className: 'ipb-lbl', html: esc((it.mods?.T ? it.mods.T + ' · ' : '') + `SLOPE ${d.thr.join(' / ')} %`), iconSize: null }) }));
+    }
+    return out;
+  },
+  describe(it){ const d = it.data || {}; return d.grid ? `Slope bands — ${d.nx}×${d.ny} samples, ${d.src}; shaded above ${d.thr[0]} %, ${d.thr[1]} %, ${d.thr[2]} %` : 'Slope bands — fetching elevations…'; },
+  async afterFinish(it){
+    const thr = ['ipbSlope1','ipbSlope2','ipbSlope3'].map(id => +document.getElementById(id).value || 0).sort((a, b) => a - b);
+    const b = L.latLngBounds(it.pts); const N = 24;
+    const lats = [], lons = []; for (let i = 0; i < N; i++){ lats.push(b.getSouth() + (b.getNorth() - b.getSouth()) * i / (N - 1)); lons.push(b.getWest() + (b.getEast() - b.getWest()) * i / (N - 1)); }
+    const pts = []; for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) pts.push([lats[j], lons[i]]);
+    toast(`Fetching ${pts.length} elevations for the slope grid…`, 6000);
+    try {
+      const elevs = []; let src = '';
+      for (let k = 0; k < pts.length; k += 100){ const e = await fetchElevations(pts.slice(k, k + 100)); elevs.push(...e.elevs); src = e.src; if (k + 100 < pts.length) await new Promise(r => setTimeout(r, 1100)); }
+      const dy = map.distance([lats[0], lons[0]], [lats[1], lons[0]]) || 1, dx = map.distance([lats[0], lons[0]], [lats[0], lons[1]]) || 1;
+      const grid = [];
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++){
+        const z = (jj, ii) => elevs[Math.min(N - 1, Math.max(0, jj)) * N + Math.min(N - 1, Math.max(0, ii))];
+        const gx = (z(j, i + 1) - z(j, i - 1)) / (2 * dx), gy = (z(j + 1, i) - z(j - 1, i)) / (2 * dy);
+        grid.push(Math.round(Math.hypot(gx, gy) * 1000) / 10);   // percent, one decimal
+      }
+      it.data = { grid, nx: N, ny: N, s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), thr, src };
+      A.drawItem(it); A.renderOverlayList(); A.changed();
+      const over = grid.filter(v => v >= thr[0]).length;
+      toast(`Slope grid done — ${Math.round(100 * over / grid.length)} % of the box is steeper than ${thr[0]} %. Shading is data; you decide what it means for movement.`, 7000);
+    } catch(err){ toast('Could not fetch elevations — ' + (err.message || err), 6000); }
+  },
+  cot(it, tm, h){ const d = it.data || {}; return [{ folder: it.uid, uid: euid(it.uid), xml: h.lineCot(it.uid, it.pts.map(p => [p[1], p[0]]), '#5a3d8a', true, null, 'SLOPE ' + (it.mods?.T || '') + (d.thr ? ' ' + d.thr.join('/') + '%' : ''), tm, h.rem + '\n' + KINDS.slope.describe(it), 2) }]; },
+  kml(it, h){ return [`<Placemark><name>Slope bands ${h.esc(it.mods?.T || '')}</name><Style><LineStyle><color>${h.kmlColor('#5a3d8a')}</color><width>2</width></LineStyle><PolyStyle><color>00000000</color></PolyStyle></Style><Polygon><outerBoundaryIs><LinearRing><coordinates>${h.coordStr(it.pts.concat([it.pts[0]]).map(p => [p[1], p[0]]))}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`]; },
+  svg(it, s){ const d = it.data || {}; return `<path d="${s.pathOf(it.pts.map(p => [p[1], p[0]]))} Z" stroke="#5a3d8a" stroke-width="3" stroke-dasharray="12 8" fill="none"/>` + (d.thr ? s.text(s.X(L.latLngBounds(it.pts).getCenter().lng), s.Y(L.latLngBounds(it.pts).getCenter().lat), `SLOPE ${d.thr.join(' / ')} %`, 24) : ''); },
+};
+const SLOPE_COLS = ['rgba(0,0,0,0)', 'rgba(255,214,0,.9)', 'rgba(255,120,0,.95)', 'rgba(200,0,0,1)'];
+function slopeImage(d, poly){
+  const S = 12; const c = document.createElement('canvas'); c.width = d.nx * S; c.height = d.ny * S; const g = c.getContext('2d');
+  // clip to the drawn polygon (in grid space)
+  g.beginPath();
+  poly.forEach((p, i) => { const x = (p[1] - d.w) / (d.e - d.w) * c.width, y = (d.n - p[0]) / (d.n - d.s) * c.height; i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.closePath(); g.clip();
+  for (let j = 0; j < d.ny; j++) for (let i = 0; i < d.nx; i++){
+    const v = d.grid[j * d.nx + i]; const band = v >= d.thr[2] ? 3 : v >= d.thr[1] ? 2 : v >= d.thr[0] ? 1 : 0;
+    if (!band) continue; g.fillStyle = SLOPE_COLS[band]; g.fillRect(i * S, (d.ny - 1 - j) * S, S, S);
+  }
+  return c.toDataURL('image/png');
+}
+CAT.push({ k: 'ivl',   kind: 'ivl',   n: 'Intervisibility (line of sight)', steps: [2], hint: 'Two clicks: observer, then target. Uses the elevation service the profile uses.' });
+CAT.push({ k: 'slope', kind: 'slope', n: 'Slope bands (elevation grid)',    steps: [2], hint: 'Draw a box; shaded at the thresholds set below. Data, not a classification.' });
+
+/* ------------------------------------------------------------------ wiring ------------- */
+function wire(){
+  document.querySelectorAll('#ipbTables button[data-t]').forEach(b => b.addEventListener('click', () => openTable(b.dataset.t)));
+  document.getElementById('ipbTableAdd').addEventListener('click', addRow);
+  document.getElementById('ipbTableCsv').addEventListener('click', exportTableCsv);
+  document.getElementById('ipbTableClose').addEventListener('click', closeTable);
+  document.getElementById('ipbTable').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeTable(); });
+  document.getElementById('ipbAcetate').addEventListener('click', () => exportAcetate().catch(e => toast('Could not build the sheet: ' + e, 6000)));
+  document.getElementById('ipbBrief').addEventListener('click', () => printBrief().catch(e => toast('Could not build the brief: ' + e, 6000)));
+  document.getElementById('ipbTplGo').addEventListener('click', makeTpls);
+  document.getElementById('ipbTplAxis').addEventListener('focus', refreshTplAxes);
+  const sec = document.getElementById('sec-ipb');
+  new MutationObserver(refreshTplAxes).observe(document.getElementById('ipbOverlays'), { childList: true });
+  A.renderPicker();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+Object.assign(window.ipb, { TABLES, openTable, closeTable, addRow, tableCsv, buildAcetate, exportAcetate, printBrief, makeTpls, parseDtg, fmtDtg, refreshTplAxes, slopeImage });
 })();
 
 </script>
