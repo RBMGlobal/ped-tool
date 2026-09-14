@@ -524,6 +524,8 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
 .ipb-tablewrap td input:focus, .ipb-tablewrap td select:focus { border-color: var(--accent); outline: none; background: var(--page); }
 .ipb-t-del { width: 28px; } .ipb-t-del button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .ipb-t-del button:hover { color: #d03b3b; }
+.ipb-ovmove { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 10px; padding: 0 3px; line-height: 1; }
+.ipb-ovmove:hover { color: var(--ink-1); }
 </style>
 <body>
 <header>
@@ -6380,6 +6382,13 @@ function addOverlay(step, name){
   IPB.overlays.push(o); IPB.active[step] = o.id;
   renderOverlayList(); return o;
 }
+// Overlays draw in list order, so later ones sit on top; moving one changes what covers what.
+function moveOverlay(id, dir){
+  const i = IPB.overlays.findIndex(o => o.id === id); const j = i + dir;
+  if (i < 0 || j < 0 || j >= IPB.overlays.length) return;
+  [IPB.overlays[i], IPB.overlays[j]] = [IPB.overlays[j], IPB.overlays[i]];
+  redrawAll(); renderOverlayList(); changed();
+}
 function removeOverlay(id){
   const o = overlayById(id); if (!o) return;
   o.items.forEach(i => clearGfx(i.uid));
@@ -6576,8 +6585,8 @@ let curStep = 2;
 function renderPicker(){
   const wrap = document.getElementById('ipbPick'); wrap.innerHTML = '';
   const q = document.getElementById('ipbSearch').value.trim().toLowerCase();
-  let list = CAT.filter(c => c.steps.includes(curStep));
-  if (q) list = CAT.filter(c => c.n.toLowerCase().includes(q));
+  let list = CAT.filter(c => c.steps.includes(curStep) && !c.x);
+  if (q) list = CAT.filter(c => c.n.toLowerCase().includes(q) && !c.x);
   list.forEach(c => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'ipb-pick'; b.dataset.k = c.k;
     b.innerHTML = `<span class="ipb-pick-n">${esc(c.n)}</span>${c.hint ? `<span class="ipb-pick-h">${esc(c.hint)}</span>` : ''}`;
@@ -6600,7 +6609,7 @@ function renderPicker(){
     }
     extra.forEach(x => {
       const k = 'x_' + x.id;
-      if (!CAT.some(c => c.k === k)) CAT.push({ k, ss: x.ss, e: x.id.slice(2), n: x.name, steps: [1,2,3,4], aff: x.ss === 25 ? '03' : '06', hint: x.path });
+      if (!CAT.some(c => c.k === k)) CAT.push({ k, ss: x.ss, e: x.id.slice(2), n: x.name, steps: [1,2,3,4], aff: x.ss === 25 ? '03' : '06', hint: x.path, x: true });
       const b = document.createElement('button'); b.type = 'button'; b.className = 'ipb-pick ipb-pick-x'; b.dataset.k = k;
       b.innerHTML = `<span class="ipb-pick-n">${esc(x.name)}</span><span class="ipb-pick-h">${esc(x.path)}</span>`;
       b.addEventListener('click', () => startDraw(k, curStep));
@@ -6616,7 +6625,8 @@ function renderOverlayList(){
   forStep.forEach(o => {
     const d = document.createElement('div'); d.className = 'ipb-ov' + (IPB.active[curStep] === o.id ? ' on' : '');
     d.innerHTML = `<label class="ipb-ov-top"><input type="checkbox" ${o.visible ? 'checked' : ''} title="Show / hide">` +
-      `<input class="ipb-ov-name" value="${esc(o.name)}" spellcheck="false" title="Rename"><span class="count">${o.items.length}</span></label>` +
+      `<input class="ipb-ov-name" value="${esc(o.name)}" spellcheck="false" title="Rename"><span class="count">${o.items.length}</span>` +
+      `<button type="button" class="ipb-ovmove" data-a="up" title="Draw beneath the overlay above">▲</button><button type="button" class="ipb-ovmove" data-a="down" title="Draw on top of the overlay below">▼</button></label>` +
       `<div class="ipb-ov-items"></div>` +
       `<div class="ipb-ov-btns"><button data-a="use" title="New graphics go into this overlay">${IPB.active[curStep] === o.id ? 'Active' : 'Use'}</button>` +
       `<button data-a="tak" title="Export this overlay as a TAK data package">TAK</button><button data-a="kml" title="Export this overlay as KML">KML</button>` +
@@ -6634,6 +6644,7 @@ function renderOverlayList(){
       items.appendChild(row);
     });
     d.querySelector('[data-a=use]').addEventListener('click', () => { IPB.active[curStep] = o.id; renderOverlayList(); });
+    d.querySelectorAll('.ipb-ovmove').forEach(b => b.addEventListener('click', ev => { ev.preventDefault(); moveOverlay(o.id, b.dataset.a === 'up' ? -1 : 1); }));
     d.querySelector('[data-a=tak]').addEventListener('click', () => exportOverlayTAK(o.id));
     d.querySelector('[data-a=kml]').addEventListener('click', () => exportOverlayKML(o.id));
     d.querySelector('[data-a=del]').addEventListener('click', () => { if (!o.items.length || confirm(`Delete “${o.name}” and its ${o.items.length} graphic${o.items.length===1?'':'s'}?`)) removeOverlay(o.id); });
@@ -6663,7 +6674,7 @@ function load(obj){
     (O.items || []).forEach(I => {
       if (!I.k || !Array.isArray(I.pts) || !I.pts.length) return;
       const c = CAT.find(c => c.k === I.k);
-      if (!c && /^x_\d{8}$/.test(I.k)) CAT.push({ k: I.k, ss: +I.k.slice(2,4), e: I.k.slice(4), n: I.k.slice(2), steps:[1,2,3,4], aff: I.aff });
+      if (!c && /^x_\d{8}$/.test(I.k)) CAT.push({ k: I.k, ss: +I.k.slice(2,4), e: I.k.slice(4), n: I.k.slice(2), steps:[1,2,3,4], aff: I.aff, x: true });
       else if (!c) return;
       o.items.push({ uid: I.uid || newUid(I.k), k: I.k, aff: I.aff || '03', ech: I.ech, cls: I.cls, pts: I.pts, mods: I.mods || {}, notes: I.notes || '', data: I.data });
       const m = String(I.uid || '').match(/\.(\d+)$/); if (m) IPB.seq = Math.max(IPB.seq, +m[1]);
@@ -6673,7 +6684,13 @@ function load(obj){
   IPB.active = obj.active || {};
   IPB.tables = (obj.tables && typeof obj.tables === 'object') ? obj.tables : {};
   renderOverlayList();
-  if (IPB.overlays.some(o => o.items.length)) ipbInit().then(redrawAll).catch(() => {});
+  if (IPB.overlays.some(o => o.items.length)) ipbInit().then(() => {
+    // graphics picked from the wider catalogue carry only their code in the file; give them their name back
+    const L2 = R.MSLookup.getInstance(), V = R.SymbolID.Version_APP6D; let renamed = false;
+    CAT.forEach(c => { if (c.x && /^\d+$/.test(c.n)) { const info = L2.getMSLInfo(c.n, V); if (info) { c.n = info.getName(); c.hint = info.getPath(); renamed = true; } } });
+    if (renamed) renderOverlayList();
+    redrawAll();
+  }).catch(() => {});
 }
 // wrap the host's project functions — the bindings are ordinary globals
 if (typeof serializeProject === 'function'){
@@ -6869,6 +6886,11 @@ function wire(){
   map.on('click', onMapClick);
   map.on('zoomend moveend', scheduleRedraw);
   setStep(2);
+  if (!ipbSupported()) {
+    const n = document.createElement('div'); n.className = 'addhint';
+    n.innerHTML = '<b>This browser cannot run the symbology renderer</b> (no gzip support) — the IPB overlay needs a current Chrome, Safari, Firefox or Edge. Saved graphics are kept in the project and will draw on a browser that can.';
+    document.getElementById('ipbPick').replaceWith(n);
+  }
   // a warm start once the section is first shown, so the first pick does not wait
   const sec = document.getElementById('sec-ipb');
   if (sec) new MutationObserver(() => { if (getComputedStyle(sec).display !== 'none') ipbInit().then(renderPicker).catch(() => {}); }).observe(sec, { attributes: true, attributeFilter: ['class','open','style'] });
@@ -6876,7 +6898,7 @@ function wire(){
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
 
 // exposed for tests and for the shell
-window.ipb = { CAT, IPB, KINDS, STEP_NAMES, MCOO, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, setStep,
+window.ipb = { CAT, IPB, KINDS, STEP_NAMES, MCOO, startDraw, finishDraw, cancelDraw, openProps, closeProps, deleteItem, addOverlay, removeOverlay, moveOverlay, setStep,
                serialize, load, redrawAll, drawItem, exportOverlayTAK, exportOverlayKML, sidcOf, geomOf, overlayCotItems, ensureOverlay,
                renderGeo, renderSvg, renderPicker, renderOverlayList, itemOf, overlayOf, overlayById, newUid, changed, labelOfItem, zoomTo,
                get renderer(){ return R; }, get draw(){ return draw; }, get step(){ return curStep; } };
@@ -7100,7 +7122,7 @@ function makeTpls(){
     const half = len * 1000 / 2 / Math.cos(mid.lat * Math.PI / 180);   // metres → mercator units at this latitude
     const p1 = R3857.unproject(L.point(pm.x + px * half, pm.y + py * half)), p2 = R3857.unproject(L.point(pm.x - px * half, pm.y - py * half));
     const hrs = every * k; const lbl = start ? fmtDtg(new Date(start.getTime() + hrs * 3600e3)) : `+${hrs} h`;
-    o.items.push({ uid: A.newUid('pl'), k: 'pl', aff: it.aff || '03', pts: [[p1.lat, p1.lng], [p2.lat, p2.lng]], mods: { T: 'TPL ' + lbl }, notes: `Time-phase line — ${rate} km/h along ${A.labelOfItem(it)}, ${hrs} h from start.` });
+    o.items.push({ uid: A.newUid('pl'), k: 'pl', aff: it.aff || '03', pts: [[p1.lat, p1.lng], [p2.lat, p2.lng]], mods: { T: lbl }, notes: `Time-phase line — ${rate} km/h along ${A.labelOfItem(it)}, ${hrs} h from start.` });
     n++;
   }
   A.redrawAll(); A.renderOverlayList(); A.changed();
@@ -7127,7 +7149,7 @@ KINDS.ivl = {
     out.push(L.marker(L.latLngBounds(it.pts).getCenter(), { interactive: false, icon: L.divIcon({ className: 'ipb-lbl', html: esc((it.mods?.T ? it.mods.T + ' · ' : '') + (d.visible ? 'VISIBLE' : 'MASKED at ' + (d.maskKm || 0).toFixed(1) + ' km')), iconSize: null }) }));
     return out;
   },
-  describe(it){ const d = it.data || {}; return d.prof ? `Intervisibility — ${d.visible ? 'target visible' : `masked; highest obstruction ${d.maskKm?.toFixed(1)} km out, ${d.needM} m more height needed`} · observer ${d.hObs} m, target ${d.hTgt} m · ${d.src}` : 'Intervisibility — fetching elevations…'; },
+  describe(it){ const d = it.data || {}; return d.prof ? `Intervisibility — ${d.visible ? 'target visible' : `masked; highest obstruction ${d.maskKm?.toFixed(1)} km out, ${d.needM} m more height needed`} · observer ${d.hObs} m, target ${d.hTgt} m · ${d.src}` : d.failed ? 'Intervisibility — the elevation service could not be reached; delete this line and try again with signal' : 'Intervisibility — fetching elevations…'; },
   async afterFinish(it){
     toast('Fetching the profile…', 4000);
     try {
@@ -7146,7 +7168,7 @@ KINDS.ivl = {
       it.data = { prof, visible, maskKm, needM, hObs, hTgt, src: e.src };
       A.drawItem(it); A.renderOverlayList(); A.changed();
       toast(visible ? 'Line of sight is clear.' : `Masked ${maskKm.toFixed(1)} km from the observer — the observer would need about ${needM} m more height.`, 6000);
-    } catch(err){ toast('Could not fetch elevations — ' + (err.message || err), 6000); }
+    } catch(err){ it.data = { failed: true }; A.drawItem(it); A.changed(); toast('Could not fetch elevations — ' + (err.message || err), 6000); }
   },
   cot(it, tm, h){ const d = it.data || {}; return [{ folder: it.uid, uid: euid(it.uid), xml: h.lineCot(it.uid, it.pts.map(p => [p[1], p[0]]), d.visible ? '#1b9e3a' : '#d62828', false, null, 'LOS ' + (it.mods?.T || '') + (d.prof ? (d.visible ? ' visible' : ' masked') : ''), tm, h.rem + '\n' + KINDS.ivl.describe(it), 3) }]; },
   kml(it, h){ const d = it.data || {}; return [`<Placemark><name>LOS ${h.esc(it.mods?.T || '')} ${d.visible ? 'visible' : 'masked'}</name><Style><LineStyle><color>${h.kmlColor(d.visible ? '#1b9e3a' : '#d62828')}</color><width>3</width></LineStyle></Style><LineString><coordinates>${h.coordStr(it.pts.map(p => [p[1], p[0]]))}</coordinates></LineString></Placemark>`]; },
@@ -7166,7 +7188,7 @@ KINDS.slope = {
     }
     return out;
   },
-  describe(it){ const d = it.data || {}; return d.grid ? `Slope bands — ${d.nx}×${d.ny} samples, ${d.src}; shaded above ${d.thr[0]} %, ${d.thr[1]} %, ${d.thr[2]} %` : 'Slope bands — fetching elevations…'; },
+  describe(it){ const d = it.data || {}; return d.grid ? `Slope bands — ${d.nx}×${d.ny} samples, ${d.src}; shaded above ${d.thr[0]} %, ${d.thr[1]} %, ${d.thr[2]} %` : d.failed ? 'Slope bands — the elevation service could not be reached; delete this box and try again with signal' : 'Slope bands — fetching elevations…'; },
   async afterFinish(it){
     const thr = ['ipbSlope1','ipbSlope2','ipbSlope3'].map(id => +document.getElementById(id).value || 0).sort((a, b) => a - b);
     const b = L.latLngBounds(it.pts); const N = 24;
@@ -7179,15 +7201,16 @@ KINDS.slope = {
       const dy = map.distance([lats[0], lons[0]], [lats[1], lons[0]]) || 1, dx = map.distance([lats[0], lons[0]], [lats[0], lons[1]]) || 1;
       const grid = [];
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++){
-        const z = (jj, ii) => elevs[Math.min(N - 1, Math.max(0, jj)) * N + Math.min(N - 1, Math.max(0, ii))];
-        const gx = (z(j, i + 1) - z(j, i - 1)) / (2 * dx), gy = (z(j + 1, i) - z(j - 1, i)) / (2 * dy);
+        const z = (jj, ii) => elevs[jj * N + ii];
+        const i0 = Math.max(0, i - 1), i1 = Math.min(N - 1, i + 1), j0 = Math.max(0, j - 1), j1 = Math.min(N - 1, j + 1);
+        const gx = (z(j, i1) - z(j, i0)) / ((i1 - i0) * dx), gy = (z(j1, i) - z(j0, i)) / ((j1 - j0) * dy);
         grid.push(Math.round(Math.hypot(gx, gy) * 1000) / 10);   // percent, one decimal
       }
       it.data = { grid, nx: N, ny: N, s: b.getSouth(), n: b.getNorth(), w: b.getWest(), e: b.getEast(), thr, src };
       A.drawItem(it); A.renderOverlayList(); A.changed();
       const over = grid.filter(v => v >= thr[0]).length;
       toast(`Slope grid done — ${Math.round(100 * over / grid.length)} % of the box is steeper than ${thr[0]} %. Shading is data; you decide what it means for movement.`, 7000);
-    } catch(err){ toast('Could not fetch elevations — ' + (err.message || err), 6000); }
+    } catch(err){ it.data = { failed: true }; A.drawItem(it); A.changed(); toast('Could not fetch elevations — ' + (err.message || err), 6000); }
   },
   cot(it, tm, h){ const d = it.data || {}; return [{ folder: it.uid, uid: euid(it.uid), xml: h.lineCot(it.uid, it.pts.map(p => [p[1], p[0]]), '#5a3d8a', true, null, 'SLOPE ' + (it.mods?.T || '') + (d.thr ? ' ' + d.thr.join('/') + '%' : ''), tm, h.rem + '\n' + KINDS.slope.describe(it), 2) }]; },
   kml(it, h){ return [`<Placemark><name>Slope bands ${h.esc(it.mods?.T || '')}</name><Style><LineStyle><color>${h.kmlColor('#5a3d8a')}</color><width>2</width></LineStyle><PolyStyle><color>00000000</color></PolyStyle></Style><Polygon><outerBoundaryIs><LinearRing><coordinates>${h.coordStr(it.pts.concat([it.pts[0]]).map(p => [p[1], p[0]]))}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`]; },
