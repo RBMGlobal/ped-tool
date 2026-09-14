@@ -252,7 +252,7 @@
 
 <header class="mast">
   <div class="mast-in">
-    <p class="eyebrow">Version 1.28 (beta layout + IPB) · 6 September 2026 · RBM Global</p>
+    <p class="eyebrow">Version 1.28 (beta layout + IPB phases 1–3) · 6 September 2026 · RBM Global</p>
     <h1>PED Field Manual</h1>
     <p class="stand">
       PED is a single HTML file — and an Android app built from that same file — for working up
@@ -1157,7 +1157,15 @@
       <h3>Export</h3>
       <p>Cursor-on-Target has no type for tactical graphics, so each overlay exports in three lanes: <b>threat units and equipment</b> as proper CoT unit types (a hostile infantry company is <code>a-h-G-U-C-I</code>); <b>point control measures</b> — decision point, key terrain, checkpoint — as spot markers carrying the APP-6 icon as an attachment; <b>lines and areas</b> as the renderer's own strokes, as ATAK drawings, so ATAK shows the same picture. An NAI arrives as a box named <code>NAI 3</code>; an axis of advance arrives as its arrow outline with its label placed where the standard places it. <span class="ui">KML</span> carries the same geometry for GRG overlays and Google Earth.</p>
       <div class="note note--ops"><b>What is baked and what is not.</b> Lines and areas are exported at the zoom you are looking at, so an arrowhead is the size you see. Zoom to how you want it read in ATAK, then export. The project file stores the <i>source</i> — code, points, amplifiers — and never the rendering, so it re-draws perfectly anywhere. ATAK cannot hatch: MCOO terrain arrives as a translucent brown fill with its class in the label.</div>
-      <div class="note"><b>What this section does not do.</b> It draws what you decide. It does not classify terrain, place units for you, or generate courses of action.</div>
+      <h3>Staff tables</h3>
+      <p>Four tables sit beside the graphics and travel in the project file: the <b>event matrix</b> (NAI, indicator, earliest and latest, what it confirms or denies, the DP it feeds, collection asset), the <b>decision support matrix</b> (DP, decision, trigger, the NAI or TAI it watches, action, no-later-than), the <b>terrain effects matrix</b> and the <b>weather effects matrix</b>. The NAI, TAI and DP columns are pick-lists of the graphics actually on the map, so a row always points at a real box. Each table exports as CSV.</p>
+      <h3>Overlay sheet and brief</h3>
+      <p><span class="ui">Overlay sheet (PNG)</span> draws everything visible as an acetate: no basemap, register marks with the MGRS of the sheet corners, a scale bar, a title block with project, date-time and the sensitivity marking, and a legend. It covers exactly the view you are looking at, at print resolution. <span class="ui">Print brief</span> opens a page with the sheet and every filled-in table — print it, or save as PDF from the print dialog.</p>
+      <h3>Helpers — data, not decisions</h3>
+      <p><b>Time-phase lines.</b> Pick an axis or line already drawn, give a rate in km/h, an interval in hours and optionally a start DTG. Phase lines are placed perpendicular to the axis at rate × interval, labelled <code>TPL +1 h</code> and so on, or with the DTG. The rate is yours: ATP 2-01.3 appendix B has planning figures by terrain and unit.</p>
+      <p><b>Intervisibility.</b> Under step 2, two clicks: observer, then target. The tool fetches the profile between them from the elevation service the elevation profile already uses (declared in section 12), assumes 2 m at each end, and draws the line green where the line of sight clears the ground and red where it is masked, with the distance to the masking rise and how much more height the observer would need. Both points and the 80 samples between them go to that service.</p>
+      <p><b>Slope bands.</b> Set three thresholds in per cent, pick <i>Slope bands</i> under step 2 and draw a box. A 24 × 24 elevation grid (576 samples, six requests) is fetched from the same service and the box is shaded yellow, orange and red above each threshold. The label states the thresholds. What a band means for movement is your call — draw the MCOO polygons yourself where you judge the ground restricted.</p>
+      <div class="note"><b>What this section does not do.</b> It draws what you decide. It does not classify terrain, place units for you, or generate courses of action. The helpers present numbers; they do not turn them into an assessment.</div>
     </section>
 
     <section id="app">
@@ -1240,7 +1248,8 @@
             <tr><td>Hillshade relief</td><td>Esri tiles</td><td>The map area you are looking at</td></tr>
             <tr><td>Elevation profile</td><td class="mono">opentopodata.org</td><td>The sampled coordinates of the line</td></tr>
             <tr><td><span class="ui">Read image</span> (OCR)</td><td>Nothing — runs on this device</td><td>Nothing; the photo never leaves the device</td></tr>
-            <tr><td><span class="ui">IPB overlay</span> (APP-6D renderer)</td><td>Nothing — the renderer ships inside the file and runs on this device</td><td>Nothing; graphics, designations and notes stay in the project</td></tr>
+            <tr><td><span class="ui">IPB overlay</span> (APP-6D renderer, tables, sheet)</td><td>Nothing — the renderer ships inside the file and runs on this device</td><td>Nothing; graphics, designations, tables and notes stay in the project</td></tr>
+            <tr><td><span class="ui">IPB</span> intervisibility &amp; slope bands</td><td>opentopodata.org (SRTM 30 m), falling back to open-meteo.com — the same service as the elevation profile</td><td>The coordinates sampled along the line or across the box</td></tr>
             <tr><td>Open in Google Maps</td><td>Google Maps</td><td>That one coordinate, when you click the link</td></tr>
           </tbody>
         </table>
