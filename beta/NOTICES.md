@@ -38,3 +38,10 @@ The Mapbox access token embedded in `index.html` is a public (`pk.`) token, whic
 to be used in client-side code. It is not a secret key. GitHub's secret scanner flags it anyway.
 On a public repository anyone can use it against your Mapbox quota — set usage limits and URL
 restrictions on the token at mapbox.com if that matters.
+
+## mil-sym-ts (C5Ren) 2.10.4 — Apache License 2.0
+
+MIL-STD-2525D / NATO APP-6D symbology renderer, US Army C5ISR Center (missioncommand/mil-sym-ts).
+Embedded gzip-compressed in `index.html` and inflated on first use of the IPB overlay. Used to
+draw control measures, units and equipment; no modifications to the library.
+Licence text: https://www.apache.org/licenses/LICENSE-2.0
