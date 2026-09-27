@@ -2641,8 +2641,9 @@ function setPosition(id, on){
     apply(L.latLngBounds([sw.lat + dLat, sw.lng + dLng], [ne.lat + dLat, ne.lng + dLng])); });
   [hSW, hNE, hMV].forEach(h => { h.addTo(map); h.on('dragend', scheduleAutosave); });
   posHandles = [hSW, hNE, hMV];
-  toast('Drag ◺ / ◹ to resize and ✥ to move the image. Click “Position” again when it lines up.', 7000);
+  toast('Drag ◺ / ◹ to resize and ✥ to move the image. Click “Position” again when it lines up, or Esc to finish.', 7000);
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && posOv && !isTyping(e)) setPosition(posOv, false); });
 /* plain image (PNG/JPG map screenshot, air photo) -> hand-positioned overlay */
 async function handleImage(file){
   if (ocrSupported()){
@@ -5739,10 +5740,11 @@ function setBoxSel(on){
     if (typeof elevMode !== 'undefined' && elevMode) setElev(false);
     if (typeof probeMode !== 'undefined' && probeMode) setProbe(false);
     map.dragging.disable();
-    toast('Drag a box over the points to select — the map unlocks after one drag.', 6000);
+    toast('Drag a box over the points to select — the map unlocks after one drag. Esc cancels.', 6000);
   } else map.dragging.enable();
 }
 document.getElementById('boxSelBtn').addEventListener('click', () => setBoxSel(!boxSelMode));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && boxSelMode && !isTyping(e)) setBoxSel(false); });
 (function(){
   const mapDom = document.getElementById('map');
   let start = null, rect = null;
@@ -7629,6 +7631,7 @@ function wire(){
   document.getElementById('ipbTableCsv').addEventListener('click', exportTableCsv);
   document.getElementById('ipbTableClose').addEventListener('click', closeTable);
   document.getElementById('ipbTable').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeTable(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && curTable){ e.stopPropagation(); closeTable(); } }, true);
   const sec = document.getElementById('sec-ipb');
   new MutationObserver(refreshTplAxes).observe(document.getElementById('ipbOverlays'), { childList: true });   // fires after the whole re-render, so the axis select already exists
   A.renderPicker();
@@ -7697,11 +7700,26 @@ Object.assign(window.ipb, { TABLES, openTable, closeTable, addRow, tableCsv, bui
     return [].some.call(document.querySelectorAll(MODALS),
       function(m){ return getComputedStyle(m).display !== 'none'; });
   }
+  /* Capture, and before the tool's own Esc handlers clear their flags. Those
+     handlers do not stop the key, so a bubble listener here also shut the
+     drawer — Esc while drawing a polygon cancelled the polygon and closed
+     Plot. A live map tool keeps the drawer. */
+  function mapToolOwnsEsc(){
+    if (typeof drawMode !== 'undefined' && drawMode) return true;
+    if (typeof pickMode !== 'undefined' && pickMode) return true;
+    if (typeof boxSelMode !== 'undefined' && boxSelMode) return true;
+    if (typeof elevMode !== 'undefined' && elevMode) return true;
+    if (typeof probeMode !== 'undefined' && probeMode) return true;
+    if (typeof shapeEdit !== 'undefined' && shapeEdit) return true;
+    if (typeof posOv !== 'undefined' && posOv) return true;
+    return false;
+  }
   document.addEventListener('keydown', function(e){
     if (e.key !== 'Escape' || !cur || modalUp()) return;   // a card on screen owns Esc first
+    if (mapToolOwnsEsc()) return;
     var t = e.target && e.target.tagName;
     if (t !== 'INPUT' && t !== 'TEXTAREA' && t !== 'SELECT') show(null);
-  });
+  }, true);
 
   /* The tool opens a section on its own when it has something to show you — a scan
      preview after a dropped file, for one. In the live layout that was enough, because
@@ -7746,6 +7764,17 @@ Object.assign(window.ipb, { TABLES, openTable, closeTable, addRow, tableCsv, bui
       var el = document.getElementById(ACT[a]);
       if (el) el.click();
     });
+  });
+  /* The rail clicks the real control, which is the one that grows class "on".
+     Mirror that onto the rail button so a mode you started is visible after
+     the drawer is shut. */
+  Object.keys(ACT).forEach(function(a){
+    var src = document.getElementById(ACT[a]);
+    var btn = document.querySelector('#rbmRail button[data-act="' + a + '"]');
+    if (!src || !btn) return;
+    var sync = function(){ btn.classList.toggle('on', src.classList.contains('on')); };
+    sync();
+    new MutationObserver(sync).observe(src, { attributes: true, attributeFilter: ['class'] });
   });
 
   /* theme — dark is the brand default; the toggle is remembered per browser */
