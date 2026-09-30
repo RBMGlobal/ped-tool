@@ -1,28 +1,23 @@
-/* PED — offline worker.
-   Network-first for our own files, so an update on the server reaches everyone next time they
-   open the page with signal; the cached copy answers when there is none. Anything from another
-   origin (map tiles, road snapping, elevation) is left alone entirely — those are never cached,
-   both to respect the providers' terms and so nobody is looking at stale imagery. */
-const CACHE = 'ped-1.31';
-const SHELL = ['./', './index.html', './manual.html', './manifest.webmanifest',
-  './icon-192.png', './icon-512.png', './icon-maskable-192.png', './icon-maskable-512.png',
-  './apple-touch-icon.png'];
-
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+/* Normal PED retired: only beta remains published.
+   Keep this URL so installed normal apps can update their old worker.
+   Never remove beta caches, shared OCR files, or users' saved data. */
+const ROOT = new URL('./', self.location.href);
+const BETA = new URL('beta/', ROOT);
+const isRetiredShell = name => /^ped-[0-9]/.test(name);
+self.addEventListener('install', event => {
+  event.waitUntil(self.skipWaiting());
 });
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys()
+    .then(keys => Promise.all(keys.filter(isRetiredShell).map(key => caches.delete(key))))
     .then(() => self.clients.claim()));
 });
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  if (new URL(req.url).origin !== location.origin) return;   // tiles + services: straight to the network
-  e.respondWith(
-    fetch(req)
-      .then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; })
-      .catch(() => caches.match(req).then(hit => hit || caches.match('./index.html')))
-  );
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || event.request.mode !== 'navigate') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== ROOT.origin) return;
+  const isMain = url.pathname === ROOT.pathname || url.pathname === ROOT.pathname + 'index.html';
+  const isManual = url.pathname === ROOT.pathname + 'manual.html';
+  if (!isMain && !isManual) return;
+  event.respondWith(Response.redirect(new URL(isManual ? 'manual.html' : './', BETA).href, 302));
 });

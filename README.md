@@ -1,5 +1,10 @@
 # PED tool
 
+> **Publication update (30 September 2026): beta only.** The normal version is offline.
+> Open https://rbmglobal.co.uk/ped-tool/beta/ . The old root address now redirects to beta.
+> Maintain the published app under `beta/`; keep the root redirect and retirement worker in place.
+> The normal implementation remains recoverable in Git history. Older instructions below describe that implementation.
+
 Operational planning on a map, exported as TAK data packages for ATAK / WinTAK.
 One self-contained HTML file — no build step, no dependencies, no server logic.
 Nothing anyone plots leaves their own device.
