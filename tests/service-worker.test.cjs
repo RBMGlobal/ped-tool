@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 const ROOT = 'https://rbmglobal.co.uk/ped-tool/beta/';
-const CURRENT = 'ped-beta-9';
+const CURRENT = 'ped-beta-10';
 const script = fs.readFileSync(path.join(__dirname, '../beta/sw.js'), 'utf8');
 
 function worker({ failStorage = false } = {}) {

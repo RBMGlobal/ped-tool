@@ -1,7 +1,7 @@
 # PED tool — beta layout
 
-RBM Global branding, and function access restructured after TAK_OS. The tool itself is
-unchanged; see `BETA_NOTES.md` in the build folder. Live tool stays at `/ped-tool/`.
+The published app lives at `/ped-tool/beta/`. The normal root redirects here.
+Maintain this directory and preserve the root redirect and retirement worker.
 
 Operational planning on a map, exported as TAK data packages for ATAK / WinTAK.
 One self-contained HTML file — no build step, no dependencies, no server logic.
@@ -22,13 +22,14 @@ Nothing anyone plots leaves their own device.
 
 ## Published
 
-**Live: https://rbmglobal.co.uk/ped-tool/** · manual at `/manual.html`
+**Live: https://rbmglobal.co.uk/ped-tool/beta/** · manual at
+https://rbmglobal.co.uk/ped-tool/beta/manual.html
 
 Served by GitHub Pages from this repo (Settings → Pages → Deploy from a branch → `main` / root).
 It sits under the domain because `RBMGlobal.github.io` is the organisation's site repo, which puts
 every project repo at `rbmglobal.co.uk/<repo>/`. The old `rbmglobal.github.io/ped-tool/` address
 still works and redirects here.
-Live at `https://rbmglobal.github.io/ped-tool/` (and at the custom domain once DNS points here).
+The custom domain above is the public address; the root tool URL redirects to beta.
 
 A GitHub Pages site is public — anyone with the URL can open it and read the source. If you later
 want it restricted to your team's email addresses, Cloudflare Pages can deploy from this same repo
@@ -47,7 +48,10 @@ blank map background — exactly how the local HTML file behaves today.
 
 Replace `index.html` (and `manual.html`) and commit. Everyone gets the new version the next time
 they open the page with signal — the offline worker serves the cached copy only when the network
-is unavailable. Bump `CACHE` in `sw.js` when you update, so old copies are cleared out.
+is unavailable or returns an HTTP error. Bump `CACHE` in `sw.js` when you update, so
+older PED beta shell copies are cleared out. Other applications and saved projects
+are preserved. From the repository root, run `node --test tests/*.test.cjs` before
+publishing.
 
 ## Never commit
 
