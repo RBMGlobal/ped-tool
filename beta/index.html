@@ -1789,43 +1789,60 @@ const AUTOKEY_LEGACY2 = 'riskmap.autosave.v3';  // and the original Risk map one
 let _autoT = null, _autoArmed = false, _liteWarned = false, _liteRuns = 0, _autoDeadWarned = false;
 const VIEWKEY = 'ped.view.v1';
 let _viewT = null;
+function saveViewNow(){
+  clearTimeout(_viewT); _viewT = null;
+  try { localStorage.setItem(VIEWKEY, JSON.stringify({ c: [map.getCenter().lat, map.getCenter().lng], z: map.getZoom(), base: curBase, hs: hsOn || undefined, t: Date.now() })); } catch(e){}
+}
 function scheduleViewSave(){
   clearTimeout(_viewT);
-  _viewT = setTimeout(() => {
-    try { localStorage.setItem(VIEWKEY, JSON.stringify({ c: [map.getCenter().lat, map.getCenter().lng], z: map.getZoom(), base: curBase, hs: hsOn || undefined, t: Date.now() })); } catch(e){}
-  }, 800);
-}   // armed once real content exists, so an untouched fresh page never overwrites a previous session's autosave
-function scheduleAutosave(){
-  clearTimeout(_autoT);
-  _autoT = setTimeout(() => {
-    try {
-      if (allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length || (window.IPB && IPB.overlays.some(o => o.items.length))) _autoArmed = true;
-      if (!_autoArmed) return;
-      let ok = false;
-      // once the full save has failed on quota, most runs go straight to lite rather than
-      // re-stringifying every attachment — but every 8th run tries the full save again, so
-      // deleting the oversized imagery quietly puts attachment autosave back on
-      const tryFull = !_liteWarned || (++_liteRuns % 8 === 0);
-      if (tryFull){ try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); ok = true; if (_liteWarned){ _liteWarned = false; _liteRuns = 0; } } catch(qe){} }
-      if (!ok){
-        try {
-          // quota — retry without attachments / imagery so the geometry at least survives
-          localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject({ files:false })));
-          ok = true;
-          if (!_liteWarned){ _liteWarned = true; toast('Attachments/imagery are too big for browser autosave — points, routes and areas are saved, but use Save (.json) to keep the files.', 8000); }
-        } catch(e3){}
-      }
-      if (!ok){
-        // storage disabled, or even the geometry is over quota — silence here would mean the user
-        // finds out on the next power cut. Say it once.
-        if (!_autoDeadWarned){ _autoDeadWarned = true; toast('Browser autosave is NOT working on this device — use Save (.json) regularly.', 12000); }
-        return;
-      }
-      _autoDeadWarned = false;
-      try { localStorage.removeItem(AUTOKEY_LEGACY); localStorage.removeItem(AUTOKEY_LEGACY2); } catch(e2){}
-    } catch(e){}
-  }, 800);
+  _viewT = setTimeout(saveViewNow, 800);
 }
+function cancelPendingAutosave(){
+  clearTimeout(_autoT); _autoT = null;
+}
+// Armed once real content exists, so a fresh page never replaces an older autosave.
+function saveAutosaveNow(){
+  cancelPendingAutosave();
+  try {
+    if (allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length || (window.IPB && IPB.overlays.some(o => o.items.length))) _autoArmed = true;
+    if (!_autoArmed) return;
+    let ok = false;
+    // once the full save has failed on quota, most runs go straight to lite rather than
+    // re-stringifying every attachment — but every 8th run tries the full save again, so
+    // deleting the oversized imagery quietly puts attachment autosave back on
+    const tryFull = !_liteWarned || (++_liteRuns % 8 === 0);
+    if (tryFull){ try { localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject())); ok = true; if (_liteWarned){ _liteWarned = false; _liteRuns = 0; } } catch(qe){} }
+    if (!ok){
+      try {
+        // quota — retry without attachments / imagery so the geometry at least survives
+        localStorage.setItem(AUTOKEY, JSON.stringify(serializeProject({ files:false })));
+        ok = true;
+        if (!_liteWarned){ _liteWarned = true; toast('Attachments/imagery are too big for browser autosave — points, routes and areas are saved, but use Save (.json) to keep the files.', 8000); }
+      } catch(e3){}
+    }
+    if (!ok){
+      // storage disabled, or even the geometry is over quota — silence here would mean the user
+      // finds out on the next power cut. Say it once.
+      if (!_autoDeadWarned){ _autoDeadWarned = true; toast('Browser autosave is NOT working on this device — use Save (.json) regularly.', 12000); }
+      return;
+    }
+    _autoDeadWarned = false;
+    try { localStorage.removeItem(AUTOKEY_LEGACY); localStorage.removeItem(AUTOKEY_LEGACY2); } catch(e2){}
+  } catch(e){}
+}
+function scheduleAutosave(){
+  cancelPendingAutosave();
+  _autoT = setTimeout(saveAutosaveNow, 800);
+}
+function flushPendingSaves(){
+  // Flush only actual pending work; visibilitychange and pagehide may both fire.
+  if (_autoT !== null) saveAutosaveNow();
+  if (_viewT !== null) saveViewNow();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushPendingSaves();
+});
+window.addEventListener('pagehide', flushPendingSaves);
 // TAK / MIL-STD-2525 affiliation frames (the "frame" = shape + colour). Letter L is the CoT affiliation char.
 const AFF = {
   pending:      { label:"Pending",        color:"#F5C400", shape:"quatrefoil", dashed:true,  L:"p" },
@@ -2148,7 +2165,7 @@ function popupHTML(pt, ly) {
     <div class="afflabel">Notes → TAK remarks</div>
     <textarea class="ptnotes" rows="2" placeholder="e.g. checkpoint manned 0600–1800">${esc(pt.notes||'')}</textarea>
     <div class="afflabel">Attachments${(pt.atts&&pt.atts.length)?` (${pt.atts.length})`:''} → TAK package</div>
-    <div class="attlist">${(pt.atts||[]).map((a,i)=>`<div class="attrow">${/^data:image/.test(a.dataURL)?`<img src="${a.dataURL}" alt="">`:''}<span class="attnm" title="${esc(a.name)}">${esc(a.name)}</span><button class="attdel" data-i="${i}" title="Remove attachment">✕</button></div>`).join('')}</div>
+    <div class="attlist">${(pt.atts||[]).map((a,i)=>`<div class="attrow">${/^data:image/.test(a.dataURL)?`<img src="${esc(a.dataURL)}" alt="">`:''}<span class="attnm" title="${esc(a.name)}">${esc(a.name)}</span><button class="attdel" data-i="${i}" title="Remove attachment">✕</button></div>`).join('')}</div>
     <button class="mini attadd">+ Attach photo / file…</button>
     <a href="${gm}" target="_blank" rel="noopener">Open in Google Maps ↗</a>
     <label class="selrow"><input type="checkbox" data-uid="${pt.uid}" ${checked}> Select for TAK / KML export</label>
@@ -6112,7 +6129,7 @@ function loadProject(obj){
   const backup = allMarkers.length || Object.keys(routes).length || Object.keys(shapes).length || Object.keys(overlays).length ? serializeProject() : null;
   const ok = loadProjectInner(obj);
   if (ok || !backup) return;
-  clearTimeout(_autoT);
+  cancelPendingAutosave();
   try { loadProjectInner(backup, true); toast('Could not load that project file — your previous project has been put back.', 8000); }
   catch(e2){ console.error(e2); toast('Could not load that project file, and restoring the previous one failed — reload the page and choose Restore.', 12000); }
 }

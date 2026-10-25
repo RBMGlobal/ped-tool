@@ -1,6 +1,6 @@
 # PED code review — 25 October 2026
 
-Reviewed the published `beta/` app, its offline worker and the retired root routes. This is a source review and an automated worker regression check, not a claim that every browser, import format or operational feature has been exercised. No user project files were used. The application monolith and its embedded vendor libraries are unchanged in this patch.
+Reviewed the published `beta/` app, its offline worker and the retired root routes. This is a source review and an automated worker regression check, not a claim that every browser, import format or operational feature has been exercised. No user project files were used. The application monolith changes only in generic attachment display and autosave lifecycle handling. Embedded vendor/model bytes, project schema and operational functions are unchanged.
 
 ## Implemented: isolate and preserve the offline app
 
@@ -15,47 +15,44 @@ The worker now:
 - Saves one copy of `index.html`, shared by directory and query-string URLs, instead of two copies. At the reviewed revision this removes **7,699,402 bytes** of duplicate shell content from the explicit precache list; browser overhead/compression may differ.
 - Keeps background cache writes alive without allowing cache/storage failures to prevent an otherwise valid online response.
 
-Root redirects, retirement worker, localStorage keys, project data and UI/layout are untouched. The beta cache version changes from 8 to 9.
+Root redirects, retirement worker, localStorage keys, project data and UI/layout are untouched. The beta cache version is now 10 so the updated shell is precached.
 
 ### Validation
 
 Run with Node 20 or newer:
 
 ```sh
-node --test tests/service-worker.test.cjs
+node --test tests/*.test.cjs
 ```
 
 The same command runs in GitHub Actions on pull requests and pushes to main, using Node 22 and read-only repository permissions.
 
-Eleven passing tests cover installation, cache isolation, non-shell bypass, successful refresh, query/root aliases, HTTP errors, missing-file behavior, unavailable storage, redirects and actual retirement-worker navigation. Tests execute the real worker scripts in a VM with simulated browser APIs. Installation checks that each shell asset exists in the repository. A real-browser upgrade/offline smoke test is still needed before merging/deploying; these tests do not simulate browser worker lifecycle or storage eviction fully.
+All 24 tests pass: 11 worker regressions plus 13 synthetic attachment/autosave regressions. Tests execute the real worker scripts and extracted application functions in a VM with simulated browser APIs, storage and deterministic timers. Installation checks that each shell asset exists. They cover blank-start protection, the last edit before hide, duplicate lifecycle events, normal debouncing, attachment quota/lite fallback and recovery, legacy-key migration, import rollback cancellation and attribute escaping. A real-browser upgrade/offline smoke test is still needed before deploying; these tests do not fully simulate browser lifecycle or storage eviction.
 
-## Follow-up findings (not fixed by this bounded patch)
+## Implemented follow-up: attachment display and pending autosave
 
-### P1 — imported project values cross HTML attribute boundaries
+### Imported attachment HTML attribute injection
 
-Source trace, `beta/index.html`:
+The original loader accepts attachment `dataURL` values from imported projects and `popupHTML` placed them directly into a quoted image `src`. The generated HTML is supplied to Leaflet `bindPopup`. An isolated invocation of the real popup function confirmed that a harmless quoted value could add an unintended `data-audit` attribute.
 
-1. Lines 3388–3389 parse an imported project and call `loadProjectChecked`.
-2. Line 6133 accepts any truthy attachment `dataURL` from the project.
-3. Line 2151 interpolates that value directly into a quoted `<img src="...">` in `popupHTML`, after only testing the `data:image` prefix.
-4. Line 2284 passes the generated HTML to Leaflet `bindPopup`.
+The image source is now escaped using the application's existing `esc` function. Synthetic tests show that quotes/markup remain inside the attribute, ordinary image URLs still display identically, and the original attachment bytes remain unchanged for save/export. No script execution was attempted. This fixes that specific display sink; it does not establish that every import sink is safe.
 
-A local, isolated invocation of the real `popupHTML` function used a harmless attachment value with an additional `data-audit` attribute after a quote. The returned HTML contained that additional attribute outside `src`. This confirms an HTML attribute injection path; executing a script in a live browser was deliberately not part of this review. A crafted imported file can therefore influence DOM markup on the same origin as the other tools and their browser storage. This is the first follow-up to address.
+### Pending edits on page hide
 
-Adjacent imported layer keys and colors also reach HTML/SVG string interpolation (`makeLayer`, line 1875; `buildLayerRow`, line 2393; `frameSVG`, line 1907). These need a systematic boundary review rather than treating one escaped attachment field as a complete fix.
+The original content/view saves waited 800 ms with no lifecycle flush. Pending edits could be missed when the tab closed before the callback ran. Both callbacks are now named functions that clear their pending timer identifiers. `visibilitychange` to hidden and `pagehide` flush only actual pending work, so duplicate events do not trigger duplicate writes.
 
-Recommended next step: use DOM property assignment for attachment URLs, validate allowed data URL formats, validate import schema/types/identifier uniqueness before mutating the current project, and escape all remaining text/attribute sinks. Preserve older valid saved-project formats and test malformed imports against synthetic fixtures. Never use real saved projects in CI.
+The existing content-arming rule still prevents a blank startup from replacing a previous autosave. Attachment quota fallback, the periodic full-save retry, migration only after a successful write and import rollback cancellation remain intact. Explicit save-file and stored schema behavior are unchanged. A process crash or forced device shutdown can still prevent browser lifecycle events; this is improved normal lifecycle handling, not a guarantee against every shutdown.
 
-### P2 — recent edits can miss the browser autosave on close/background
+The beta README now names the beta app/manual URLs and removes its stale build-folder reference.
 
-`scheduleAutosave` at lines 1798–1827 waits 800 ms before writing. `scheduleViewSave` has the same delay at lines 1792–1796. There is no `pagehide` or `visibilitychange` flush handler in the reviewed application. A tab closed before the pending callback runs loses that pending write; mobile background suspension can delay it as well.
+## Remaining review items
 
-Reproduction to verify in a browser: make an edit to a synthetic existing project, reload within 800 ms, and restore. Compare with a reload after the timer has fired. This was identified from the timer/lifecycle code, not an executed browser reproduction.
+### P1 — complete the imported-content boundary review
 
-Recommended next step: isolate the existing storage routine into a flush function, flush only pending dirty work on `visibilitychange` to hidden and `pagehide`, and preserve the current rule that opening a blank page never overwrites a previous autosave. Test quota errors, saved attachments, legacy-key migration and cancellation/rollback during imports.
+Adjacent imported layer keys and colors still reach HTML/SVG string interpolation through `makeLayer`, `buildLayerRow` and `frameSVG`. Their schemas and all display sinks need a systematic audit; the attachment fix is deliberately not presented as a complete import security solution.
 
-### P3 — documentation and load-size maintenance
+Recommended next step: validate import types, identifiers and uniqueness before mutating the current project; use DOM property assignment where practical and escape remaining text/attribute sinks. Preserve older valid saved-project formats and test malformed imports against synthetic fixtures. Never use real saved projects in CI.
 
-`beta/README.md` still advertises the retired root URL and references build-folder notes that are absent from this repository. Align the documentation with the beta-only publication arrangement.
+### P3 — measure optional embedded asset cost before changing packaging
 
-The current app is a 7.7 MB self-contained HTML file with embedded libraries and compressed models. After measuring a real cold start on the supported phone/tablet browsers, consider separating optional OCR/vendor assets while keeping the documented downloadable/offline use case working. Splitting assets without an offline migration test would risk regressing the existing workflow, so this patch only removes the proven duplicate precache download.
+The app is a self-contained HTML file with embedded libraries and compressed models. After measuring a real cold start on supported phone/tablet browsers, consider separating optional assets while keeping the documented downloadable/offline use case working. Splitting assets without an offline migration test would risk regressing the workflow, so this patch only removes the proven duplicate precache download.

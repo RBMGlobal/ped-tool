@@ -16,5 +16,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Test offline worker behavior
+      - name: Test offline worker and data preservation
         run: node --test tests/*.test.cjs
