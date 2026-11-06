@@ -1889,10 +1889,33 @@ const ROLE_ORDER = ["generic","infantry","armor","artillery","recon","engineer",
 let laySeq = 0;
 const LAYERS = [];
 const LYBY = {};
+function safePointUid(uid, layerKey, seen){
+  const s = typeof uid === 'string' ? uid : '';
+  if (/^ly\d+\.p\d+$/.test(s) && !seen.has(s)) { seen.add(s); return s; }
+  const prefix = /^ly\d+$/.test(layerKey) ? layerKey : 'ly0';
+  let next;
+  do { next = prefix + '.p' + (++addedSeq); } while (seen.has(next));
+  seen.add(next);
+  return next;
+}
+function importedAttachments(list){
+  const used = new Set();
+  const out = [];
+  for (const a of (Array.isArray(list) ? list : [])) {
+    if (!a || typeof a.dataURL !== 'string' || !a.dataURL.startsWith('data:')) continue;
+    const name = attName(a.name);
+    let final = name, n = 2;
+    while (used.has(final)) final = name.replace(/(\.\w+)?$/, m => '_' + (n++) + m);
+    used.add(final);
+    out.push({ name: final, type: typeof a.type === 'string' && a.type.length <= 80 ? a.type : 'application/octet-stream', dataURL: a.dataURL });
+  }
+  return out;
+}
 function makeLayer(name, defAff='hostile', defRole, key){
-  if (key) { const m = key.match(/^ly(\d+)$/); if (m) laySeq = Math.max(laySeq, +m[1]); }
+  const given = typeof key === 'string' && /^ly\d+$/.test(key) && !LYBY[key] ? key : '';
+  if (given) { laySeq = Math.max(laySeq, +given.slice(2)); key = given; }
   else key = 'ly' + (++laySeq);
-  const ly = { key, name: (name && name.trim()) || ('Layer ' + key.slice(2)), defAff, defRole };
+  const ly = { key, name: (name && String(name).trim()) || ('Layer ' + key.slice(2)), defAff, defRole };
   LAYERS.push(ly); LYBY[key] = ly; DATA[key] = DATA[key] || [];
   return ly;
 }
@@ -1903,13 +1926,26 @@ makeLayer('Layer 1');
 function affKeyOf(pt, ly){ const k = pt.affKey || (ly && ly.defAff); return AFF[k] ? k : "hostile"; }
 function roleKeyOf(pt, ly){ const k = pt.roleKey || (ly && ly.defRole); return ROLES[k] ? k : "generic"; }
 function cotOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)]; return r.fixed ? r.fixed : r.build(AFF[affKeyOf(pt,ly)].L); }
-function dotColorOf(pt, ly){ return pt.dotColor || (ly && ly.defDotColor) || ROLES[roleKeyOf(pt,ly)].color || "#FF5252"; }
-function colorOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)]; if (r.dot) return dotColorOf(pt,ly); if (r.custom) return r.color; return r.noAff ? "#20232a" : AFF[affKeyOf(pt,ly)].color; }
+function dotColorOf(pt, ly){
+  return safeColor(pt && pt.dotColor, '') || safeColor(ly && ly.defDotColor, '') || safeColor(ROLES[roleKeyOf(pt,ly)].color, '#ff5252');
+}
+function colorOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)]; if (r.dot) return dotColorOf(pt,ly); if (r.custom) return safeColor(r.color, '#3355ff'); return r.noAff ? '#20232a' : safeColor(AFF[affKeyOf(pt,ly)].color, '#20232a'); }
 function labelOf(pt, ly){ const r = ROLES[roleKeyOf(pt,ly)], a = AFF[affKeyOf(pt,ly)];
   return r.noAff ? r.label : (a.label + (roleKeyOf(pt,ly)==="generic" ? "" : " · " + r.label)); }
 
+function safeColor(value, fallback){
+  const s = String(value == null ? '' : value).trim();
+  let m = /^#([0-9a-fA-F]{6})$/.exec(s);
+  if (m) return '#' + m[1].toLowerCase();
+  m = /^#([0-9a-fA-F]{3})$/.exec(s);
+  if (m) return '#' + m[1].split('').map(ch => ch + ch).join('').toLowerCase();
+  return fallback;
+}
 // Low-level frame renderer: shape + colour, optional dashed frame and a role glyph.
 function frameSVG(shape, color, s, opts={}) {
+  s = +s;
+  if (!Number.isFinite(s) || s <= 0 || s > 128) s = 12;
+  color = safeColor(color, '#20232a');
   const w = s + 4, c = w/2, stroke = 'rgba(11,11,11,.75)';
   const dash = opts.dashed ? ' stroke-dasharray="3 2"' : '';
   let inner;
@@ -1920,7 +1956,8 @@ function frameSVG(shape, color, s, opts={}) {
   else if (shape === 'pin')       { inner=`<circle cx="${c}" cy="${c}" r="${(w-5)/2}"/>`; }
   else                            { inner=`<circle cx="${c}" cy="${c}" r="${(w-4)/2}"/>`; }
   const gc = (shape==='square'||shape==='quatrefoil') ? '#0b0b0b' : '#ffffff';
-  const glyph = opts.glyph ? `<text x="${c}" y="${c+0.5}" text-anchor="middle" dominant-baseline="central" font-size="${s*0.52}" font-family="system-ui,sans-serif" font-weight="700" fill="${gc}">${opts.glyph}</text>` : '';
+  const glyphText = opts.glyph ? esc(Array.from(String(opts.glyph)).slice(0, 2).join('')) : '';
+  const glyph = glyphText ? `<text x="${c}" y="${c+0.5}" text-anchor="middle" dominant-baseline="central" font-size="${s*0.52}" font-family="system-ui,sans-serif" font-weight="700" fill="${gc}">${glyphText}</text>` : '';
   return `<svg width="${w}" height="${w}" viewBox="0 0 ${w} ${w}" style="display:block"><g fill="${color}" stroke="${stroke}" stroke-width="1.6" paint-order="stroke"${dash}>${inner}</g>${glyph}</svg>`;
 }
 // Icon for a point (frame from affiliation, glyph/pin from role, or a coloured spot-map dot).
@@ -2135,8 +2172,8 @@ function roleSelectHTML(curRole){
   ROLE_ORDER.forEach(k => { const g = ROLES[k].group || ''; (groups[g] ||= []).push(k); });
   let h = `<select class="rolesel">`;
   for (const g of Object.keys(groups)) {
-    if (g) h += `<optgroup label="${g}">`;
-    groups[g].forEach(k => h += `<option value="${k}" ${k===curRole?'selected':''}>${ROLES[k].label}</option>`);
+    if (g) h += `<optgroup label="${esc(g)}">`;
+    groups[g].forEach(k => h += `<option value="${esc(k)}" ${k===curRole?'selected':''}>${esc(ROLES[k].label)}</option>`);
     if (g) h += `</optgroup>`;
   }
   return h + `</select>`;
@@ -2267,7 +2304,7 @@ function downscaleImage(url, maxDim, q){
     im.src = url;
   });
 }
-function attName(name){ const s = String(name||'file').replace(/[^\w.\-]+/g, '_').replace(/^_+|_+$/g, ''); return s || 'file'; }
+function attName(name){ const base = String(name || 'file').split(/[/\\]/).pop(); const s = base.replace(/[^\w.\-]+/g, '_').replace(/^\.+/, '').replace(/^_+|_+$/g, ''); return s || 'file'; }
 document.getElementById('attInput').addEventListener('change', async e => {
   const files = [...e.target.files]; e.target.value = '';
   const r = registry[attTarget]; if (!r || !files.length) return;
@@ -2376,7 +2413,7 @@ function undoDelete(){
     let ly = LYBY[lyKey];
     if (!ly) {  // the whole layer was deleted — bring it back with the same key
       ly = makeLayer(lyName, lyDef.defAff, lyDef.defRole, lyKey);
-      if (lyDef.defDotColor) ly.defDotColor = lyDef.defDotColor;
+      if (lyDef.defDotColor) { const dot = safeColor(lyDef.defDotColor, ''); if (dot) ly.defDotColor = dot; }
       initLayerRuntime(ly); buildLayerRow(ly); refreshLayerSelect();
     }
     if (registry[pt.uid]) return;
@@ -2399,15 +2436,17 @@ const rowsEl = document.getElementById('layerRows');
 // full type picker (affiliations + roles + spot dots) for the per-layer default icon
 function keyDefaultOptions(ly){
   const cur = (ly.defRole && ly.defRole !== 'generic') ? 'role:'+ly.defRole : 'aff:'+ly.defAff;
-  let h = `<optgroup label="Affiliation (frame)">` + AFF_ORDER.map(k => `<option value="aff:${k}" ${cur==='aff:'+k?'selected':''}>${AFF[k].label}</option>`).join('') + `</optgroup>`;
+  let h = `<optgroup label="Affiliation (frame)">` + AFF_ORDER.map(k => `<option value="aff:${esc(k)}" ${cur==='aff:'+k?'selected':''}>${esc(AFF[k].label)}</option>`).join('') + `</optgroup>`;
   const rg = {}; ROLE_ORDER.forEach(k => { if(k==='generic') return; const g = ROLES[k].group||'Other'; (rg[g] ||= []).push(k); });
-  for (const g of Object.keys(rg)) h += `<optgroup label="${g}">` + rg[g].map(k => `<option value="role:${k}" ${cur==='role:'+k?'selected':''}>${ROLES[k].label}</option>`).join('') + `</optgroup>`;
+  for (const g of Object.keys(rg)) h += `<optgroup label="${esc(g)}">` + rg[g].map(k => `<option value="role:${esc(k)}" ${cur==='role:'+k?'selected':''}>${esc(ROLES[k].label)}</option>`).join('') + `</optgroup>`;
   return h;
 }
 function relabelLayerDefault(ly){ const r = ROLES[ly.defRole||'generic']; return (ly.defRole && ly.defRole!=='generic') ? (r.noAff ? r.label : AFF[ly.defAff].label+' · '+r.label) : AFF[ly.defAff].label; }
 function buildLayerRow(ly){
   const row = document.createElement('div'); row.className = 'layer-row';
-  row.innerHTML = `<input type="checkbox" checked id="cb-${ly.key}"><span class="sw" id="sw-${ly.key}">${iconSVG({}, ly, 12)}</span><span class="lbl"><input class="lname" value="${esc(ly.name)}" title="Click to rename this layer" spellcheck="false"></span><span class="count" id="cnt-${ly.key}">${DATA[ly.key].length || ''}</span><button class="lydel" title="Delete this layer and its points">✕</button>`;
+  const id = /^ly\d+$/.test(ly.key) ? ly.key : 'ly0';
+  const dotShown = safeColor(ly.defDotColor, safeColor((ly.defRole && ROLES[ly.defRole] && ROLES[ly.defRole].color) || '#FF5252', '#ff5252'));
+  row.innerHTML = `<input type="checkbox" checked id="cb-${id}"><span class="sw" id="sw-${id}">${iconSVG({}, ly, 12)}</span><span class="lbl"><input class="lname" value="${esc(ly.name)}" title="Click to rename this layer" spellcheck="false"></span><span class="count" id="cnt-${id}">${DATA[ly.key].length || ''}</span><button class="lydel" title="Delete this layer and its points">✕</button>`;
   rowsEl.appendChild(row);
   row.querySelector('input[type=checkbox]').addEventListener('change', e => { e.target.checked ? map.addLayer(groups[ly.key]) : map.removeLayer(groups[ly.key]); refreshSelUI(); scheduleAutosave(); });   // Leaflet rebuilds marker DOM on re-add, taking the selection halo with it
   const nameEl = row.querySelector('.lname');
@@ -2417,14 +2456,14 @@ function buildLayerRow(ly){
   // per-layer default icon control — changes every point in the layer that has no per-point override
   const wrap = document.createElement('div'); wrap.className = 'keyaff';
   wrap.innerHTML = `<span>Default icon</span><select class="keyaffsel" title="Set the default TAK icon for all points in this layer">${keyDefaultOptions(ly)}</select>` +
-    `<input type="color" class="keydotcol" title="Dot colour" value="${ly.defDotColor || (ly.defRole&&ROLES[ly.defRole]&&ROLES[ly.defRole].color) || '#FF5252'}" style="display:${(ly.defRole&&ROLES[ly.defRole]&&ROLES[ly.defRole].dot)?'inline-block':'none'}">`;
+    `<input type="color" class="keydotcol" title="Dot colour" value="${esc(dotShown)}" style="display:${(ly.defRole&&ROLES[ly.defRole]&&ROLES[ly.defRole].dot)?'inline-block':'none'}">`;
   row.after(wrap);
   ly._row = row; ly._wrap = wrap;
   const sel = wrap.querySelector('.keyaffsel'), dotcol = wrap.querySelector('.keydotcol');
   function applyLayerDefault(){
     let n = 0;
     DATA[ly.key].forEach(pt => { if (!pt.affKey && !pt.roleKey && !pt.dotColor) { registry[pt.uid].marker.setIcon(iconFor(pt, ly)); n++; } });
-    document.getElementById('sw-'+ly.key).innerHTML = iconSVG({}, ly, 12);
+    document.getElementById('sw-'+id).innerHTML = iconSVG({}, ly, 12);
     refreshSelUI();
     const skipped = DATA[ly.key].length - n;
     toast(`${ly.name}: default set to ${relabelLayerDefault(ly)}${skipped ? ` (${skipped} kept a per-point icon)` : ''}.`);
@@ -2439,7 +2478,7 @@ function buildLayerRow(ly){
     if (isDot) dotcol.value = ly.defDotColor || ROLES[ly.defRole].color;
     applyLayerDefault();
   });
-  dotcol.addEventListener('input', () => { ly.defDotColor = dotcol.value; applyLayerDefault(); });
+  dotcol.addEventListener('input', () => { ly.defDotColor = safeColor(dotcol.value, dotShown); applyLayerDefault(); });
 }
 LAYERS.forEach(buildLayerRow);
 
@@ -4782,12 +4821,12 @@ function openPopupsRefresh(){
 /* bulk edit — apply an icon or a layer move to every selected point */
 const bulkTypeEl = document.getElementById('bulkType'), bulkDotEl = document.getElementById('bulkDot');
 function affRoleOptionsHTML(){
-  let h = `<optgroup label="Affiliation (frame)">` + AFF_ORDER.map(k=>`<option value="aff:${k}">${AFF[k].label}</option>`).join('') + `</optgroup>`;
+  let h = `<optgroup label="Affiliation (frame)">` + AFF_ORDER.map(k=>`<option value="aff:${esc(k)}">${esc(AFF[k].label)}</option>`).join('') + `</optgroup>`;
   const rg = {}; ROLE_ORDER.forEach(k => { if(k==='generic') return; const g = ROLES[k].group||'Other'; (rg[g] ||= []).push(k); });
-  for (const g of Object.keys(rg)) h += `<optgroup label="${g}">` + rg[g].map(k=>`<option value="role:${k}">${ROLES[k].label}</option>`).join('') + `</optgroup>`;
+  for (const g of Object.keys(rg)) h += `<optgroup label="${esc(g)}">` + rg[g].map(k=>`<option value="role:${esc(k)}">${esc(ROLES[k].label)}</option>`).join('') + `</optgroup>`;
   return h;
 }
-function rolesGroupedOptionsHTML(){ const g={}; ROLE_ORDER.forEach(k=>{ const gr=ROLES[k].group||''; (g[gr] ||= []).push(k); }); let h=''; for(const gr of Object.keys(g)){ if(gr) h+=`<optgroup label="${gr}">`; g[gr].forEach(k=>h+=`<option value="${k}">${ROLES[k].label}</option>`); if(gr) h+='</optgroup>'; } return h; }
+function rolesGroupedOptionsHTML(){ const g={}; ROLE_ORDER.forEach(k=>{ const gr=ROLES[k].group||''; (g[gr] ||= []).push(k); }); let h=''; for(const gr of Object.keys(g)){ if(gr) h+=`<optgroup label="${esc(gr)}">`; g[gr].forEach(k=>h+=`<option value="${esc(k)}">${esc(ROLES[k].label)}</option>`); if(gr) h+='</optgroup>'; } return h; }
 function refreshRoleSelects(){
   const ar = document.getElementById('addRole');
   if (ar){ const curA = ar.value; ar.innerHTML = rolesGroupedOptionsHTML(); if (ROLES[curA]) ar.value = curA; }
@@ -5183,12 +5222,12 @@ function renderRouteList(){
     const rt = routes[uid];
     const km = rt.lengthM ? ` · ${(rt.lengthM/1000).toFixed(1)} km` : '';
     const item = document.createElement('div'); item.className = 'rt-item';
-    item.innerHTML = `<div class="rt-top"><input type="color" class="rt-col" value="${rt.color||'#0a58ff'}" title="Route colour"><input class="rt-name" value="${esc(rt.name)}" spellcheck="false" title="Click to rename"></div>`
+    item.innerHTML = `<div class="rt-top"><input type="color" class="rt-col" value="${esc(safeColor(rt.color, '#0a58ff'))}" title="Route colour"><input class="rt-name" value="${esc(rt.name)}" spellcheck="false" title="Click to rename"></div>`
       + `<div class="rt-meta">${rt.waypoints.length} stops${km}${routeEta(rt)} · ${rt.exact ? 'imported geometry' : rt.snapped ? 'road-snapped (OSM)' : 'straight lines'}</div>`
       + `<div class="rt-btns"><button class="rt-zoom">Zoom</button><button class="rt-edit${rt._edit?' on':''}">${rt._edit?'Done editing':'Edit stops'}</button><button class="rt-rev">Reverse</button></div>`
       + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-exp">Export TAK</button><button class="rt-m30" title="DJI wayline mission (KMZ) for the M30T — import on the RC Plus via Flight Route → Import Route">M30T</button><button class="rt-del">Delete</button></div>`;
     routeListEl.appendChild(item);
-    item.querySelector('.rt-col').addEventListener('input', e => { rt.color = e.target.value; drawRoute(rt); scheduleAutosave(); });
+    item.querySelector('.rt-col').addEventListener('input', e => { rt.color = safeColor(e.target.value, '#0a58ff'); drawRoute(rt); scheduleAutosave(); });
     const nm = item.querySelector('.rt-name');
     nm.addEventListener('input', () => { rt.name = nm.value.trim() || rt.name; scheduleAutosave(); });
     nm.addEventListener('keydown', e => { if (e.key==='Enter') nm.blur(); });
@@ -5470,7 +5509,7 @@ function createShape(def){
   if (!uid) uid = 'SHAPE.' + (++shapeSeq);
   const sh = { uid, kind: def.kind,
     name: (def.name && def.name.trim()) || ((def.kind==='circ' ? 'Circle ' : 'Area ') + uid.slice(6)),
-    color: def.color || '#EE2222', latlngs: def.latlngs, center: def.center, radius: def.radius, notes: def.notes || '' };
+    color: safeColor(def.color, '#ee2222'), latlngs: def.latlngs, center: def.center, radius: def.radius, notes: def.notes || '' };
   shapes[uid] = sh;
   drawShape(sh); renderShapeList(); refreshSelUI(); scheduleAutosave();
   return sh;
@@ -5506,11 +5545,11 @@ function renderShapeList(){
   keys.forEach(uid => {
     const sh = shapes[uid];
     const item = document.createElement('div'); item.className = 'rt-item';
-    item.innerHTML = `<div class="rt-top"><input type="color" class="sh-col" value="${sh.color}" title="Area colour"><input class="rt-name sh-name" value="${esc(sh.name)}" spellcheck="false" title="Click to rename"></div>
+    item.innerHTML = `<div class="rt-top"><input type="color" class="sh-col" value="${esc(safeColor(sh.color, '#ee2222'))}" title="Area colour"><input class="rt-name sh-name" value="${esc(sh.name)}" spellcheck="false" title="Click to rename"></div>
       <div class="rt-meta">${shapeMeta(sh)}</div>
       <div class="rt-btns"><button class="sh-zoom">Zoom</button><button class="rt-exp sh-exp">Export TAK</button><button class="rt-del sh-del">Delete</button></div>`;
     el.appendChild(item);
-    item.querySelector('.sh-col').addEventListener('input', e => { sh.color = e.target.value; drawShape(sh); scheduleAutosave(); });
+    item.querySelector('.sh-col').addEventListener('input', e => { sh.color = safeColor(e.target.value, '#ee2222'); drawShape(sh); scheduleAutosave(); });
     const nm = item.querySelector('.sh-name');
     nm.addEventListener('input', () => { sh.name = nm.value.trim() || sh.name; sh.layer.setTooltipContent(esc(sh.name)); scheduleAutosave(); });
     nm.addEventListener('keydown', e => { if (e.key==='Enter') nm.blur(); });
@@ -5545,10 +5584,10 @@ function onShapeClick(sh, e){
   openShapePopup(sh, e.latlng);
 }
 function shapePopupHTML(sh){
-  return `<div class="pp shp" data-uid="${sh.uid}">
-    <div class="cat" style="color:${sh.color}">${sh.kind==='circ' ? 'Circle' : 'Area'} · ${shapeMeta(sh).replace(/^(Circle|Polygon) · /, '')}</div>
+  return `<div class="pp shp" data-uid="${esc(sh.uid)}">
+    <div class="cat" style="color:${esc(safeColor(sh.color, '#ee2222'))}">${sh.kind==='circ' ? 'Circle' : 'Area'} · ${shapeMeta(sh).replace(/^(Circle|Polygon) · /, '')}</div>
     <div class="afflabel">Name</div><input class="nameedit sh-pname" value="${esc(sh.name)}" spellcheck="false">
-    <div class="afflabel">Colour</div><input type="color" class="dotcol sh-pcol" value="${sh.color}">
+    <div class="afflabel">Colour</div><input type="color" class="dotcol sh-pcol" value="${esc(safeColor(sh.color, '#ee2222'))}">
     <div class="afflabel">Notes → TAK remarks</div><textarea class="ptnotes sh-pnotes" rows="2" placeholder="e.g. ambush site reported 12 Sep">${esc(sh.notes||'')}</textarea>
     <div class="rowbtns"><button class="mvbtn sh-pedit">${sh.kind==='circ' ? 'Move / resize' : 'Edit corners'}</button><button class="mvbtn sh-pexp">Export TAK</button></div>
     <div class="rowbtns"><button class="rmbtn sh-pdel">Delete</button></div>
@@ -5566,7 +5605,7 @@ function wireShapePopup(sh){
   nm.oninput = () => { sh.name = nm.value.trim() || sh.name; sh.layer.setTooltipContent(esc(sh.name)); renderShapeList(); scheduleAutosave(); };
   nm.onkeydown = e => { if (e.key === 'Enter') nm.blur(); };
   const col = el.querySelector('.sh-pcol');
-  col.oninput = () => { sh.color = col.value; sh.layer.setStyle({ color: sh.color, fillColor: sh.color }); el.querySelector('.cat').style.color = sh.color; renderShapeList(); scheduleAutosave(); };
+  col.oninput = () => { sh.color = safeColor(col.value, '#ee2222'); sh.layer.setStyle({ color: sh.color, fillColor: sh.color }); el.querySelector('.cat').style.color = sh.color; renderShapeList(); scheduleAutosave(); };
   const notes = el.querySelector('.sh-pnotes');
   notes.oninput = () => { sh.notes = notes.value; scheduleAutosave(); };
   el.querySelector('.sh-pedit').onclick = () => { map.closePopup(shapePopup); startShapeEdit(sh.uid); };
@@ -5700,12 +5739,13 @@ async function exportShapeTAK(uid){
 let ciSeq = 0;
 function customIconsList(){ return ROLE_ORDER.filter(k => ROLES[k] && ROLES[k].custom).map(k => ({ key: k, label: ROLES[k].label, path: ROLES[k].path, color: ROLES[k].color })); }
 function addCustomIcon(def, quiet){
-  let key = def.key;
-  if (key){ const m = String(key).match(/^ci(\d+)$/); if (m) ciSeq = Math.max(ciSeq, +m[1]); else key = null; }
-  if (!key) key = 'ci' + (++ciSeq);
+  const given = def && typeof def.key === 'string' && /^ci\d+$/.test(def.key) && !ROLES[def.key] ? def.key : '';
+  let key;
+  if (given) { ciSeq = Math.max(ciSeq, +given.slice(2)); key = given; }
+  else key = 'ci' + (++ciSeq);
   const label = (def.label || '').trim() || ('Team icon ' + key.slice(2));
   ROLES[key] = { label, group: 'Team icons', fixed: 'a-u-G', noAff: true, custom: true,
-    color: def.color || '#3355FF', path: (def.path || '').trim(), glyph: label.charAt(0).toUpperCase() };
+    color: safeColor(def.color, '#3355ff'), path: (def.path || '').trim(), glyph: label.charAt(0).toUpperCase() };
   if (!ROLE_ORDER.includes(key)) ROLE_ORDER.push(key);
   renderCIList(); refreshRoleSelects();
   if (!quiet){ scheduleAutosave(); toast(`Team icon “${label}” added — it's now in every icon dropdown.`); }
@@ -6140,14 +6180,16 @@ function loadProjectInner(obj, isRollback){
     clearCustomIcons();
     (obj.customIcons || []).forEach(ci => addCustomIcon(ci, true));   // before points, so roleKeys resolve
     if (obj.planSpeed) document.getElementById('planSpeed').value = obj.planSpeed;
+    const seenUids = new Set();
     (obj.layers || []).forEach(L0 => {
       const ly = makeLayer(L0.name, AFF[L0.defAff] ? L0.defAff : 'hostile', ROLES[L0.defRole] ? L0.defRole : undefined, L0.key);
-      if (L0.defDotColor) ly.defDotColor = L0.defDotColor;
+      const dot = safeColor(L0.defDotColor, '');
+      if (dot) ly.defDotColor = dot;
       (L0.points || []).forEach(p => {
-        if (!isFinite(+p.lat) || !isFinite(+p.lon)) return;
-        const pt = { uid: p.uid, id: p.id || '', name: p.name || 'Point', lat: +p.lat, lon: +p.lon,
-          dms: toDMSstr(+p.lat, +p.lon), affKey: AFF[p.affKey] ? p.affKey : undefined, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: p.dotColor, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined, anpId: p.anpId || undefined,
-          atts: (p.atts || []).filter(a => a && a.dataURL) };
+        if (!p || !isFinite(+p.lat) || !isFinite(+p.lon)) return;
+        const pt = { uid: safePointUid(p.uid, ly.key, seenUids), id: p.id || '', name: p.name || 'Point', lat: +p.lat, lon: +p.lon,
+          dms: toDMSstr(+p.lat, +p.lon), affKey: AFF[p.affKey] ? p.affKey : undefined, roleKey: (p.roleKey && ROLES[p.roleKey]) ? p.roleKey : (p.roleKey ? 'generic' : p.roleKey), dotColor: safeColor(p.dotColor, '') || undefined, notes: p.notes || '', added: p.added !== false, anav: p.anav || undefined, anpId: p.anpId || undefined,
+          atts: importedAttachments(p.atts) };
         DATA[ly.key].push(pt);
         const m2 = pt.uid && String(pt.uid).match(/\.p(\d+)$/); if (m2) addedSeq = Math.max(addedSeq, +m2[1]);
       });
@@ -6159,7 +6201,7 @@ function loadProjectInner(obj, isRollback){
       if (!R0.waypoints || R0.waypoints.length < 2) return;
       let uid = R0.uid; const m3 = uid && String(uid).match(/^ROUTE\.(\d+)$/);
       if (m3) routeSeq = Math.max(routeSeq, +m3[1]); else uid = 'ROUTE.' + (++routeSeq);
-      const rt = { uid, name: R0.name || 'Route', color: R0.color || '#0a58ff', waypoints: R0.waypoints, segments: R0.segments && R0.segments.length ? R0.segments : [R0.waypoints.map(w => [w.lat, w.lon])], snapped: !!R0.snapped, exact: !!R0.exact };
+      const rt = { uid, name: R0.name || 'Route', color: safeColor(R0.color, '#0a58ff'), waypoints: R0.waypoints, segments: R0.segments && R0.segments.length ? R0.segments : [R0.waypoints.map(w => [w.lat, w.lon])], snapped: !!R0.snapped, exact: !!R0.exact };
       routes[uid] = rt; drawRoute(rt);
     });
     renderRouteList();

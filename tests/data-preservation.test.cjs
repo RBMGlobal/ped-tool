@@ -177,3 +177,102 @@ test('ordinary image attachments retain their exact source URL', () => {
   assert.ok(result.output.includes('<img src="' + value + '" alt="">'));
   assert.equal(result.attachment.dataURL, value);
 });
+
+function importBoundary() {
+  const esc = html.split('\n').find(line => line.startsWith('function esc(s)'));
+  const maker = html.slice(html.indexOf('function safePointUid('), html.indexOf("makeLayer('Layer 1');"));
+  const color = html.slice(html.indexOf('function safeColor('), html.indexOf('// Icon for a point'));
+  const names = html.slice(html.indexOf('function attName('), html.indexOf("document.getElementById('attInput').addEventListener"));
+  const rows = html.slice(html.indexOf('function buildLayerRow('), html.indexOf('LAYERS.forEach(buildLayerRow);'));
+  const options = html.slice(html.indexOf('function keyDefaultOptions('), html.indexOf('function relabelLayerDefault('));
+  const created = [];
+  const node = () => ({
+    innerHTML: '', className: '', style: {}, value: '',
+    addEventListener() {},
+    querySelector() { return node(); },
+    after() {},
+    appendChild() {}
+  });
+  const ctx = {
+    LAYERS: [], LYBY: {}, DATA: {}, laySeq: 0, addedSeq: 0,
+    rowsEl: { appendChild(row) { created.push(row); } },
+    iconSVG: () => '<svg class="swatch"></svg>',
+    keyDefaultOptions: () => '<option>kept</option>',
+    ROLES: { generic: { label: 'Generic', group: '' }, infantry: { label: 'Infantry', group: 'Units' } },
+    AFF: { hostile: { label: 'Hostile' } }, AFF_ORDER: ['hostile'], ROLE_ORDER: ['generic', 'infantry'],
+    map: {}, groups: {}, registry: {}, scheduleAutosave() {}, toast() {}, refreshSelUI() {}, deleteLayer() {},
+    document: {
+      createElement() { const n = node(); created.push(n); return n; },
+      getElementById() { return { appendChild() {}, innerHTML: '' }; }
+    }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(esc + '\n' + names + '\n' + maker + '\n' + color + '\n' + rows + '\n' + options, ctx);
+  return { ctx, created };
+}
+
+test('imported layer keys stay unique and cannot close an HTML attribute', () => {
+  const { ctx, created } = importBoundary();
+  const hostile = ctx.makeLayer('Kept', 'hostile', undefined, 'ly4');
+  const broken = ctx.makeLayer('Alpha "<x>', 'hostile', undefined, 'ly1"><img src=x onerror=alert(1)>');
+  const duplicate = ctx.makeLayer('Beta', 'hostile', undefined, 'ly4');
+  assert.equal(hostile.key, 'ly4');
+  assert.match(broken.key, /^ly\d+$/);
+  assert.notEqual(broken.key, hostile.key);
+  assert.match(duplicate.key, /^ly\d+$/);
+  assert.equal(new Set([hostile.key, broken.key, duplicate.key]).size, 3);
+  broken.defDotColor = '#abc" onfocus="alert(1)';
+  ctx.buildLayerRow(broken);
+  const markup = created.map(el => el.innerHTML).join('\n');
+  assert.equal(markup.includes('onerror'), false);
+  assert.equal(markup.includes('onfocus'), false);
+  assert.match(markup, /id="cb-ly\d+"/);
+  const amp = String.fromCharCode(38);
+  assert.ok(markup.includes('value="Alpha ' + amp + 'quot;' + amp + 'lt;x' + amp + 'gt;"'));
+  assert.match(markup, /value="#ff5252"/);
+});
+
+test('frame colours and glyphs cannot break out of the SVG', () => {
+  const { ctx } = importBoundary();
+  const bad = ctx.frameSVG('pin', 'red"><svg onload="alert(1)">', 12, { glyph: '<img' });
+  const amp = String.fromCharCode(38);
+  assert.equal(bad.includes('onload'), false);
+  assert.equal(bad.includes('<img'), false);
+  assert.match(bad, /fill="#20232a"/);
+  assert.ok(bad.includes(amp + 'lt;i'));
+  const kept = ctx.frameSVG('diamond', '#0A58FF', 16);
+  assert.match(kept, /fill="#0a58ff"/);
+  assert.match(ctx.frameSVG('pin', '#abc', 12), /fill="#aabbcc"/);
+});
+
+test('imported point ids, colours and attachment names are kept only when they are safe', () => {
+  const { ctx } = importBoundary();
+  const seen = new Set();
+  assert.equal(ctx.safePointUid('ly4.p2', 'ly4', seen), 'ly4.p2');
+  assert.match(ctx.safePointUid('../escape.cot', 'ly4', seen), /^ly4\.p\d+$/);
+  assert.notEqual(ctx.safePointUid('ly4.p2', 'ly4', seen), 'ly4.p2');
+  assert.equal(ctx.safeColor('#EE2222', '#000000'), '#ee2222');
+  assert.equal(ctx.safeColor('"><x>', '#112233'), '#112233');
+  const files = ctx.importedAttachments([
+    { name: '../MANIFEST/manifest.xml', type: 'text/plain', dataURL: 'data:text/plain,kept' },
+    { name: 'photo.png', dataURL: 'javascript:alert(1)' },
+    { name: 'photo.png', type: 'image/png', dataURL: 'data:image/png;base64,QQ==' }
+  ]);
+  assert.equal(files.length, 2);
+  assert.equal(files[0].dataURL, 'data:text/plain,kept');
+  assert.equal(files[0].name, 'manifest.xml');
+  assert.equal(files[1].name, 'photo.png');
+  assert.equal(files[1].dataURL, 'data:image/png;base64,QQ==');
+});
+
+test('imported icon labels stay inside the option text', () => {
+  const { ctx } = importBoundary();
+  ctx.ROLES.ci1 = { label: 'Team </option><img src=x onerror=alert(1)>', group: 'Team "<icons>"', custom: true };
+  ctx.ROLE_ORDER.push('ci1');
+  const markup = ctx.keyDefaultOptions({ defAff: 'hostile', defRole: 'generic' });
+  const amp = String.fromCharCode(38);
+  assert.equal(markup.includes('<img'), false);
+  assert.ok(markup.includes('Team ' + amp + 'lt;/option' + amp + 'gt;' + amp + 'lt;img src=x onerror=alert(1)' + amp + 'gt;'));
+  assert.ok(markup.includes('label="Team ' + amp + 'quot;' + amp + 'lt;icons' + amp + 'gt;' + amp + 'quot;"'));
+});
+

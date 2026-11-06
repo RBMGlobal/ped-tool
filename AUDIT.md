@@ -15,7 +15,7 @@ The worker now:
 - Saves one copy of `index.html`, shared by directory and query-string URLs, instead of two copies. At the reviewed revision this removes **7,699,402 bytes** of duplicate shell content from the explicit precache list; browser overhead/compression may differ.
 - Keeps background cache writes alive without allowing cache/storage failures to prevent an otherwise valid online response.
 
-Root redirects, retirement worker, localStorage keys, project data and UI/layout are untouched. The beta cache version is now 10 so the updated shell is precached.
+Root redirects, retirement worker, localStorage keys, project data and UI/layout are untouched. The beta cache version is now 11 so the updated shell is precached.
 
 ### Validation
 
@@ -45,13 +45,13 @@ The existing content-arming rule still prevents a blank startup from replacing a
 
 The beta README now names the beta app/manual URLs and removes its stale build-folder reference.
 
+## Implemented follow-up: imported layer keys, colours and identifiers
+
+Imported project files are ordinary JSON. Layer keys were copied into element ids, and layer, route, area and spot colours were copied into SVG `fill` and HTML attribute values. A key or colour containing a quote could close the attribute and add markup. Point ids and attachment names from the same file were also used as paths inside a TAK zip.
+
+Imports now keep a layer key only when it is a unique `ly` plus digits; anything else, including a duplicate, is given the next free key. Colours are accepted only as `#rgb` or `#rrggbb` and are escaped again at every display site. Glyphs drawn inside the frame are escaped. Point ids that are not `lyN.pN`, or that repeat, are renumbered. Attachment names go through the existing filename cleaner, and only `data:` payloads are kept. The stored bytes of an accepted attachment are unchanged. A normal project that already uses these keys and hex colours loads with the same keys, names and colours.
+
 ## Remaining review items
-
-### P1 — complete the imported-content boundary review
-
-Adjacent imported layer keys and colors still reach HTML/SVG string interpolation through `makeLayer`, `buildLayerRow` and `frameSVG`. Their schemas and all display sinks need a systematic audit; the attachment fix is deliberately not presented as a complete import security solution.
-
-Recommended next step: validate import types, identifiers and uniqueness before mutating the current project; use DOM property assignment where practical and escape remaining text/attribute sinks. Preserve older valid saved-project formats and test malformed imports against synthetic fixtures. Never use real saved projects in CI.
 
 ### P3 — measure optional embedded asset cost before changing packaging
 
