@@ -4748,16 +4748,16 @@ async function anpElevations(pts){
     return { elevs: pts.map(() => 0), src: '' };
   }
 }
-async function exportGPX(){
-  const pts = anavPointsForExport();
+async function exportGPX(route = null){
+  const pts = route ? [] : anavPointsForExport();
   // A selection means "send exactly these locations" — so routes stay behind. With nothing
   // selected you get the whole picture, points and routes together.
-  const rts = (selection.size || anavMarked().length) ? [] : Object.values(routes);
+  const rts = route ? [route] : (selection.size || anavMarked().length) ? [] : Object.values(routes);
   if (!pts.length && !rts.length){ toast('Nothing to export yet.'); return; }
-  const { elevs, src } = await anpElevations(pts);
+  const { elevs, src } = pts.length ? await anpElevations(pts) : {elevs:[], src:null};
   const t = new Date().toISOString();
   let x = `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="PED tool" xmlns="http://www.topografix.com/GPX/1/1">\n`;
-  x += `  <metadata><name>PED tool export</name><time>${t}</time></metadata>\n`;
+  x += `  <metadata><name>${route ? esc(route.name) : 'PED tool export'}</name><time>${t}</time></metadata>\n`;
   pts.forEach(({pt, ly}, i) => {
     const desc = [pt.notes || '', `${ly.name} - ${labelOf(pt, ly)}`].filter(Boolean).join(' | ');
     x += `  <wpt lat="${pt.lat}" lon="${pt.lon}">\n`;
@@ -4771,19 +4771,21 @@ async function exportGPX(){
   rts.forEach(rt => {
     x += `  <rte>\n    <name>${esc(rt.name)}</name>\n`;
     (rt.waypoints || []).forEach((w, i) => {
-      x += `    <rtept lat="${w.lat}" lon="${w.lon}"><name>${esc(rt.name + ' ' + (i + 1))}</name></rtept>\n`;
+      x += `    <rtept lat="${w.lat}" lon="${w.lon}"><name>${esc(w.name || rt.name + ' ' + (i + 1))}</name></rtept>\n`;
     });
     x += `  </rte>\n`;
   });
   rts.forEach(rt => {
-    const path = [].concat(...(rt.segments || []));
+    const path = rt.path?.length ? rt.path : (rt.segments || []).flat();
     if (path.length < 2) return;
     x += `  <trk>\n    <name>${esc(rt.name)}</name>\n    <trkseg>\n`;
     path.forEach(c => { x += `      <trkpt lat="${c[0]}" lon="${c[1]}"></trkpt>\n`; });
     x += `    </trkseg>\n  </trk>\n`;
   });
   x += `</gpx>\n`;
-  download(new Blob([x], { type: 'application/gpx+xml' }), 'PED_' + fdate() + '.gpx', { done: `GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : (selection.size ? ' only (routes left out — that\u2019s your selection)' : '')}${src ? ` · elevations: ${src}` : ''}. On the device: Share the file to Air Navigation Pro.`, doneMs: 7000 });
+  const file = new Blob([x], { type: 'application/gpx+xml' });
+  if (route) return download(file, slug(route.name) + '.gpx', { done: `Saved “${route.name}” as GPX.` });
+  return download(file, 'PED_' + fdate() + '.gpx', { done: `GPX exported — ${pts.length} waypoint${pts.length===1?'':'s'}${rts.length ? `, ${rts.length} route${rts.length===1?'':'s'}` : (selection.size ? ' only (routes left out — that\u2019s your selection)' : '')}${src ? ` · elevations: ${src}` : ''}. On the device: Share the file to Air Navigation Pro.`, doneMs: 7000 });
 }
 async function exportANPCsv(){
   const pts = anavPointsForExport();
@@ -4804,7 +4806,7 @@ async function exportANPCsv(){
     .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
   download(new Blob([csv], { type: 'text/csv' }), 'PED_AirNav_' + fdate() + '.csv', { done: `Air Navigation CSV exported — ${pts.length} waypoint${pts.length===1?'':'s'}, layers kept as tags${src ? `, elevations from ${src}` : ', elevation 0'}. Import it in Air Navigation Manager.`, doneMs: 7000 });
 }
-document.getElementById('expGpxBtn').addEventListener('click', exportGPX);
+document.getElementById('expGpxBtn').addEventListener('click', () => exportGPX());
 document.getElementById('expAnpBtn').addEventListener('click', exportANPCsv);
 
 /* ---------- Copy for WhatsApp ----------
@@ -5243,7 +5245,18 @@ function drawRoute(rt){
   let len = 0; for (let i=1;i<path.length;i++) len += map.distance(path[i-1], path[i]);
   rt.lengthM = len;
   L.polyline(path, { color:'#ffffff', weight:8, opacity:.35 }).addTo(grp);
-  L.polyline(path, { color:col, weight:4, opacity:.9 }).addTo(grp);
+  const line = L.polyline(path, { color:col, weight:4, opacity:.9 }).addTo(grp);
+  line.bindPopup(() => {
+    const panel = document.createElement('div');
+    const name = document.createElement('p');
+    name.textContent = rt.name;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Export GPX';
+    button.addEventListener('click', () => exportGPX(rt));
+    panel.append(name, button);
+    return panel;
+  });
   rt.waypoints.forEach((w,i) => {
     const last = rt.waypoints.length-1;
     const label = i===0 ? 'S' : (i===last ? 'F' : String(i));
@@ -5279,7 +5292,7 @@ function renderRouteList(){
     item.innerHTML = `<div class="rt-top"><input type="color" class="rt-col" value="${esc(safeColor(rt.color, '#0a58ff'))}" title="Route colour"><input class="rt-name" value="${esc(rt.name)}" spellcheck="false" title="Click to rename"></div>`
       + `<div class="rt-meta">${rt.waypoints.length} stops${km}${routeEta(rt)} · ${rt.exact ? 'imported geometry' : rt.snapped ? 'road-snapped (OSM)' : 'straight lines'}</div>`
       + `<div class="rt-btns"><button class="rt-zoom">Zoom</button><button class="rt-edit${rt._edit?' on':''}">${rt._edit?'Done editing':'Edit stops'}</button><button class="rt-rev">Reverse</button></div>`
-      + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-exp">Export TAK</button><button class="rt-m30" title="DJI wayline mission (KMZ) for the M30T — import on the RC Plus via Flight Route → Import Route">M30T</button><button class="rt-del">Delete</button></div>`;
+      + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-gpx">Export GPX</button><button class="rt-exp">Export TAK</button><button class="rt-m30" title="DJI wayline mission (KMZ) for the M30T — import on the RC Plus via Flight Route → Import Route">M30T</button><button class="rt-del">Delete</button></div>`;
     if (rt.exact || rt.cleanupRemoved?.length) {
       const copyButton = document.createElement('button');
       copyButton.textContent = 'Edit route copy';
@@ -5315,6 +5328,7 @@ function renderRouteList(){
       } catch(err){ toast('Could not reach the routing service — straight lines kept.'); }
       drawRoute(rt); renderRouteList(); scheduleAutosave();
     });
+    item.querySelector('.rt-gpx').addEventListener('click', () => exportGPX(rt));
     item.querySelector('.rt-exp').addEventListener('click', () => exportRouteTAK(uid));
     item.querySelector('.rt-m30').addEventListener('click', () => exportRouteDji(uid));
     item.querySelector('.rt-del').addEventListener('click', () => { map.removeLayer(rt.group); delete routes[uid]; renderRouteList(); refreshSelUI(); scheduleAutosave(); toast(`Route “${rt.name}” removed.`); });
