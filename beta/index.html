@@ -301,9 +301,14 @@
   #osdModal #osdAcftWrap input { accent-color: var(--ink-1); margin-right: 4px; }
   #osdThumb { width: 100%; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px; display: block; }
   #osdReadout { font-size: 12.5px; line-height: 1.55; margin-bottom: 2px; overflow-wrap: anywhere; }
-</style>
-</head>
-<style id="rbm-brand">
+</style><style>
+#routeCleanup {width:min(42rem,90vw);max-height:90dvh;box-sizing:border-box;border:1px solid #a7bbb7;border-radius:10px;padding:18px;color:#173d3b;background:white;font:15px system-ui}
+#routeCleanup::backdrop {background:#10292699}
+#routeCleanup h2 {margin:0;font-size:1.1rem;overflow-wrap:anywhere}
+#routeCleanup svg {display:block;width:100%;height:auto;max-height:42vh}
+#routeCleanup .controls {display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+#routeCleanup button,#routeCleanup select {font:inherit;padding:7px;max-width:100%}
+</style></head><style id="rbm-brand">
 /* ================= RBM Global brand layer — PED tool beta =================
    Palette, emblem and type from the RBM Global CI; the shell's shape (two-tier
    top chrome, floating icon rail, drawer over a full-bleed map) follows the
@@ -590,9 +595,16 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
 .ipb-tablewrap td input:focus, .ipb-tablewrap td select:focus { border-color: var(--accent); outline: none; background: var(--page); }
 .ipb-t-del { width: 28px; } .ipb-t-del button { border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .ipb-t-del button:hover { color: #d03b3b; }
-</style>
-<body>
-<header>
+</style><body>
+<dialog id="routeCleanup" aria-labelledby="routeCleanupTitle">
+  <h2 id="routeCleanupTitle">Edited route copy</h2>
+  <p>Remove a stop to remove its adjoining legs from this copy. Separate sections export independently. A lone stop exports as a point.</p>
+  <div class="cleanup-preview"></div>
+  <div class="controls"><label>Stop <select></select></label><button class="cleanup-remove">Remove stop</button><button class="cleanup-undo">Undo removal</button></div>
+  <p role="status" aria-live="polite"></p>
+  <div class="controls"><button class="cleanup-export">Export edited ATAK package</button><button class="cleanup-svg">Save drawing (SVG)</button><button class="cleanup-close">Close</button></div>
+</dialog>
+<script src="./route-cleanup.js"></script><header>
   <span class="rbm-brand" title="RBM Global"><svg class="rbm-mark" viewBox="1 15.5 73 87.5" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="8"><path d="M70 52A18 18 0 1 0 52 70" opacity=".67"/><path d="M52 19.5A32.5 32.5 0 0 0 52 84.5"/><path d="M5 52A47 47 0 0 0 52 99" opacity=".3"/></g></svg><span class="rbm-word"><b>RBM</b> <span>Global</span></span></span>
   <span class="rbm-rule"></span>
   <h1>PED tool</h1>
@@ -3995,7 +4007,7 @@ function readCotEvent(ev, into){
     det.links.forEach(l => {
       if (l.lat === null) return;
       const isStop = /b-m-p-w/.test(l.type) || (!!l.uid && !!l.callsign);
-      if (isStop){ wps.push({ lat: l.lat, lon: l.lon }); if (cur) segs.push(cur); cur = [[l.lat, l.lon]]; }
+      if (isStop){ wps.push({ lat: l.lat, lon: l.lon, name: l.callsign || undefined }); if (cur) segs.push(cur); cur = [[l.lat, l.lon]]; }
       else if (cur) cur.push([l.lat, l.lon]);
     });
     if (cur) segs.push(cur);
@@ -5226,6 +5238,12 @@ function renderRouteList(){
       + `<div class="rt-meta">${rt.waypoints.length} stops${km}${routeEta(rt)} · ${rt.exact ? 'imported geometry' : rt.snapped ? 'road-snapped (OSM)' : 'straight lines'}</div>`
       + `<div class="rt-btns"><button class="rt-zoom">Zoom</button><button class="rt-edit${rt._edit?' on':''}">${rt._edit?'Done editing':'Edit stops'}</button><button class="rt-rev">Reverse</button></div>`
       + `<div class="rt-btns"><button class="rt-prof" title="Elevation profile along this route (30 m model, needs internet)">Profile</button><button class="rt-resnap">Re-snap roads</button><button class="rt-exp">Export TAK</button><button class="rt-m30" title="DJI wayline mission (KMZ) for the M30T — import on the RC Plus via Flight Route → Import Route">M30T</button><button class="rt-del">Delete</button></div>`;
+    if (rt.exact || rt.cleanupRemoved?.length) {
+      const copyButton = document.createElement('button');
+      copyButton.textContent = 'Edit route copy';
+      copyButton.onclick = () => openRouteCleanup(rt);
+      item.querySelector('.rt-btns').append(copyButton);
+    }
     routeListEl.appendChild(item);
     item.querySelector('.rt-col').addEventListener('input', e => { rt.color = safeColor(e.target.value, '#0a58ff'); drawRoute(rt); scheduleAutosave(); });
     const nm = item.querySelector('.rt-name');
@@ -5239,6 +5257,7 @@ function renderRouteList(){
       if (rt._edit){ if (rt.path && rt.path.length) map.fitBounds(L.latLngBounds(rt.path).pad(0.2)); toast('Drag the numbered stops to move them (legs go straight-line — “Re-snap roads” afterwards). Click “Done editing” to lock.', 8000); }
     });
     item.querySelector('.rt-rev').addEventListener('click', () => {
+      if (rt.cleanupRemoved) rt.cleanupRemoved = rt.cleanupRemoved.map(i => rt.waypoints.length - 1 - i);
       rt.waypoints.reverse();
       rt.segments = rt.segments.slice().reverse().map(s => s.slice().reverse());
       drawRoute(rt); renderRouteList(); scheduleAutosave();
@@ -5304,12 +5323,12 @@ async function addRouteFromUrl(){
   toast(msg + '.');
 }
 
-function routeCot(rt, tm){
+function routeCot(rt, tm, civilianCopy = false){
   const wp = rt.waypoints, last = wp.length-1;
   const argb = argbInt(rt.color || '#0a58ff');
   let links = '';
   for (let i=0; i<wp.length; i++){
-    const cs = i===0 ? 'Start' : (i===last ? 'Finish' : 'CP ' + i);
+    const cs = (civilianCopy && wp[i].name) || (i===0 ? 'Start' : (i===last ? 'Finish' : 'CP ' + i));
     links += `    <link uid="${esc(euid(rt.uid))}.wp${i}" type="b-m-p-w" point="${wp[i].lat},${wp[i].lon}" callsign="${esc(cs)}" relation="c" remarks=""/>\n`;
     if (i < last){
       const seg = rt.segments[i] || [];
@@ -5323,7 +5342,7 @@ function routeCot(rt, tm){
   <point lat="${p0.lat}" lon="${p0.lon}" hae="9999999.0" ce="9999999.0" le="9999999.0"/>
   <detail>
     <__routeinfo><__navcues/></__routeinfo>
-${links}    <link_attr color="${argb}" method="Driving" direction="Infil" routetype="Primary" order="Ascending Check Points" strokeColor="${argb}" strokeWeight="4.0" strokeStyle="solid" planningmethod="Infil"/>
+${links}    <link_attr color="${argb}" method="Driving"${civilianCopy ? '' : ' direction="Infil"'} routetype="Primary" order="Ascending Check Points" strokeColor="${argb}" strokeWeight="4.0" strokeStyle="solid"${civilianCopy ? '' : ' planningmethod="Infil"'}/>
     <contact callsign="${esc(rt.name)}"/>
     <remarks></remarks>
     <archive/>
@@ -6136,7 +6155,7 @@ function serializeProject(opts = {}){
       visible: map.hasLayer(groups[l.key]),
       points: DATA[l.key].map(p => ({ uid: p.uid, id: p.id, name: p.name, lat: p.lat, lon: p.lon, affKey: p.affKey, roleKey: p.roleKey, dotColor: p.dotColor, notes: p.notes, added: p.added, anav: p.anav || undefined, anpId: p.anpId || undefined,
         atts: files ? (p.atts || []).map(a => ({ name: a.name, type: a.type, dataURL: a.dataURL })) : undefined })) })),
-    routes: Object.values(routes).map(rt => ({ uid: rt.uid, name: rt.name, color: rt.color, waypoints: rt.waypoints, segments: rt.segments, snapped: rt.snapped, exact: rt.exact || undefined })),
+    routes: Object.values(routes).map(rt => ({ uid: rt.uid, name: rt.name, color: rt.color, waypoints: rt.waypoints, segments: rt.segments, snapped: rt.snapped, exact: rt.exact || undefined, cleanupRemoved: rt.cleanupRemoved?.length ? rt.cleanupRemoved : undefined })),
     shapes: Object.values(shapes).map(sh => ({ uid: sh.uid, kind: sh.kind, name: sh.name, color: sh.color, latlngs: sh.latlngs, center: sh.center, radius: sh.radius, notes: sh.notes })),
     overlays: files ? Object.values(overlays).map(o => ({ uid: o.uid, kind: o.kind, name: o.name, url: o.url, opacity: o.opacity, meta: o.meta,
       bounds: [[o.bounds.getSouth(), o.bounds.getWest()], [o.bounds.getNorth(), o.bounds.getEast()]] })) : [],
@@ -6201,7 +6220,7 @@ function loadProjectInner(obj, isRollback){
       if (!R0.waypoints || R0.waypoints.length < 2) return;
       let uid = R0.uid; const m3 = uid && String(uid).match(/^ROUTE\.(\d+)$/);
       if (m3) routeSeq = Math.max(routeSeq, +m3[1]); else uid = 'ROUTE.' + (++routeSeq);
-      const rt = { uid, name: R0.name || 'Route', color: safeColor(R0.color, '#0a58ff'), waypoints: R0.waypoints, segments: R0.segments && R0.segments.length ? R0.segments : [R0.waypoints.map(w => [w.lat, w.lon])], snapped: !!R0.snapped, exact: !!R0.exact };
+      const rt = { uid, name: R0.name || 'Route', color: safeColor(R0.color, '#0a58ff'), waypoints: R0.waypoints, segments: R0.segments && R0.segments.length ? R0.segments : [R0.waypoints.map(w => [w.lat, w.lon])], snapped: !!R0.snapped, exact: !!R0.exact, cleanupRemoved: Array.isArray(R0.cleanupRemoved) ? R0.cleanupRemoved.filter(i => Number.isInteger(i) && i >= 0 && i < R0.waypoints.length) : undefined };
       routes[uid] = rt; drawRoute(rt);
     });
     renderRouteList();

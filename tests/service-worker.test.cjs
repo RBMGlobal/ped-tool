@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 const ROOT = 'https://rbmglobal.co.uk/ped-tool/beta/';
-const CURRENT = 'ped-beta-11';
+const CURRENT = 'ped-beta-12';
 const script = fs.readFileSync(path.join(__dirname, '../beta/sw.js'), 'utf8');
 
 function worker({ failStorage = false } = {}) {
@@ -57,7 +57,7 @@ function worker({ failStorage = false } = {}) {
 test('installation caches the complete shell with one copy of the large app', async () => {
   const app = worker();
   await app.event('install');
-  assert.equal(app.installed.length, 8);
+  assert.equal(app.installed.length, 9);
   assert.equal(app.installed.filter(url => /index\.html$/.test(url)).length, 1);
   assert.equal(app.installed.includes(ROOT), false);
   for (const url of app.installed) assert.ok(fs.existsSync(path.join(__dirname, '../beta', new URL(url).pathname.split('/').pop())));

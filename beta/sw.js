@@ -2,10 +2,10 @@
    CacheStorage is shared by every app on this origin. Only this beta's shell
    belongs to us; other apps, map tiles and user data must remain untouched. */
 const CACHE_PREFIX = 'ped-beta-';
-const CACHE = CACHE_PREFIX + '11';
+const CACHE = CACHE_PREFIX + '12';
 const ROOT = new URL('./', self.location.href);
 // The directory URL uses index.html's cached copy, avoiding a second large HTML copy.
-const SHELL = ['./index.html', './manual.html', './manifest.webmanifest',
+const SHELL = ['./index.html', './manual.html', './route-cleanup.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png', './icon-maskable-192.png', './icon-maskable-512.png',
   './apple-touch-icon.png'].map(path => new URL(path, ROOT).href);
 const SHELL_URLS = new Set(SHELL);
