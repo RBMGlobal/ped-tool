@@ -4504,6 +4504,45 @@ function circleRing(center, radius, n=72){
   }
   return out;
 }
+function linePlacemark(sh){
+  const coords = sh.latlngs.map(p => `${p.lon},${p.lat},0`).join(' ');
+  return `<Placemark><name>${esc(sh.name)}</name><description>${esc(sh.notes || '')}</description><Style><LineStyle><color>${kmlColor(sh.color || '#EE2222')}</color><width>3</width></LineStyle></Style><LineString><coordinates>${coords}</coordinates></LineString></Placemark>`;
+}
+
+function exportDrawingLine(sh, format){
+  if (sh.kind !== 'line' || !['kml','gpx'].includes(format)) return;
+  if (!Array.isArray(sh.latlngs) || sh.latlngs.length < 2 || !sh.latlngs.every(p =>
+      p && Number.isFinite(p.lat) && Math.abs(p.lat) <= 90 && Number.isFinite(p.lon) && Math.abs(p.lon) <= 180)){
+    toast('This drawing needs at least two valid points. Check the original file.');
+    return;
+  }
+  let body, mime;
+  if (format === 'kml'){
+    body = `<kml xmlns="http://www.opengis.net/kml/2.2">${linePlacemark(sh)}</kml>`;
+    mime = 'application/vnd.google-earth.kml+xml';
+  } else {
+    const points = sh.latlngs.map(p => `<trkpt lat="${p.lat}" lon="${p.lon}"/>`).join('\n');
+    body = `<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="PED"><trk><name>${esc(sh.name)}</name><desc>${esc(sh.notes || '')}</desc><trkseg>${points}</trkseg></trk></gpx>`;
+    mime = 'application/gpx+xml';
+  }
+  const file = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', body], {type:mime});
+  return download(file, slug(sh.name) + '.' + format, {done:`Saved “${sh.name}” as a ${format === 'kml' ? 'KML line' : 'GPX track'}.`});
+}
+
+function addLineExportButtons(container, sh){
+  if (sh.kind !== 'line') return;
+  const row = document.createElement('div');
+  row.className = container.classList.contains('rt-item') ? 'rt-btns' : 'rowbtns';
+  for (const [format, label] of [['kml','Export KML'], ['gpx','Export GPX track']]){
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => exportDrawingLine(sh, format));
+    row.append(button);
+  }
+  container.append(row);
+}
+
 function exportKML(){
   const pts = selectedPoints();
   const rts = Object.values(routes), shs = Object.values(shapes);
@@ -4530,10 +4569,7 @@ function exportKML(){
   }).join('\n') + `\n  </Folder>`;
   const shapeFolder = !shs.length ? '' : `  <Folder><name>Drawings</name>\n` + shs.map(sh => {
     const col = sh.color || '#EE2222';
-    if (sh.kind === 'line'){
-      const coords = sh.latlngs.map(p => `${p.lon},${p.lat},0`).join(' ');
-      return `    <Placemark><name>${esc(sh.name)}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>3</width></LineStyle></Style><description>${esc(sh.notes||'')}</description><LineString><coordinates>${coords}</coordinates></LineString></Placemark>`;
-    }
+    if (sh.kind === 'line') return linePlacemark(sh);
     const ring = sh.kind === 'circ' ? circleRing(sh.center, sh.radius) : [...sh.latlngs.map(p=>[p.lon,p.lat]), [sh.latlngs[0].lon, sh.latlngs[0].lat]];
     const coords = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
     return `    <Placemark><name>${esc(sh.name)}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>3</width></LineStyle><PolyStyle><color>45${kmlColor(col).slice(2)}</color></PolyStyle></Style><description>${esc(sh.notes||'')}</description><Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`;
@@ -5575,6 +5611,7 @@ function renderShapeList(){
     item.innerHTML = `<div class="rt-top"><input type="color" class="sh-col" value="${esc(safeColor(sh.color, '#ee2222'))}" title="Drawing colour"><input class="rt-name sh-name" value="${esc(sh.name)}" spellcheck="false" title="Click to rename"></div>
       <div class="rt-meta">${shapeMeta(sh)}</div>
       <div class="rt-btns"><button class="sh-zoom">Zoom</button><button class="rt-exp sh-exp">Export TAK</button><button class="rt-del sh-del">Delete</button></div>`;
+    addLineExportButtons(item, sh);
     el.appendChild(item);
     item.querySelector('.sh-col').addEventListener('input', e => { sh.color = safeColor(e.target.value, '#ee2222'); drawShape(sh); scheduleAutosave(); });
     const nm = item.querySelector('.sh-name');
@@ -5628,6 +5665,7 @@ function openShapePopup(sh, latlng){
 }
 function wireShapePopup(sh){
   const el = shapePopup.getElement(); if (!el) return;
+  addLineExportButtons(el.querySelector('.shp'), sh);
   const nm = el.querySelector('.sh-pname');
   nm.oninput = () => { sh.name = nm.value.trim() || sh.name; sh.layer.setTooltipContent(esc(sh.name)); renderShapeList(); scheduleAutosave(); };
   nm.onkeydown = e => { if (e.key === 'Enter') nm.blur(); };
