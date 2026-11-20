@@ -736,7 +736,7 @@ details.sec > summary { font-family: var(--title-face); letter-spacing: .12em; }
     </details>
 
     <details class="sec" id="sec-areas" open>
-    <summary>Threat areas — polygons &amp; circles</summary>
+    <summary>Drawings — lines, polygons &amp; circles</summary>
     <div class="basemap-row">
       <button id="drawPolyBtn">Draw area</button>
       <button id="drawCircBtn">Draw circle</button>
@@ -4031,14 +4031,16 @@ function readCotEvent(ev, into){
     into.shapes++; return true;
   }
   if (/^u-d-(f|r)/.test(type)){
-    let ring = det.vertices.length ? det.vertices
-             : det.links.filter(l => l.lat !== null).map(l => ({ lat: l.lat, lon: l.lon }));
-    if (ring.length > 2){
-      const f = ring[0], e = ring[ring.length-1];
-      if (f.lat === e.lat && f.lon === e.lon) ring = ring.slice(0, -1);   // closing point is implied
-    }
-    if (ring.length < 3) return false;
-    createShape({ kind:'poly', latlngs: ring, name: det.callsign,
+    const points = det.vertices.length ? det.vertices
+      : det.links.filter(l => l.lat !== null && l.lon !== null).map(l => ({ lat: l.lat, lon: l.lon }));
+    if (points.length < 2) return false;
+    const first = points[0], last = points[points.length - 1];
+    const repeated = first.lat === last.lat && first.lon === last.lon;
+    const polyline = byLocal(ev, 'polyline')[0];
+    const closed = type.startsWith('u-d-r') || repeated || polyline?.getAttribute('closed') === 'true';
+    const latlngs = repeated ? points.slice(0, -1) : points;
+    if (closed && latlngs.length < 3) return false;
+    createShape({ kind: closed ? 'poly' : 'line', latlngs, name: det.callsign,
       color: argbToHex(det.stroke) || argbToHex(det.argb) || '#EE2222', notes: det.remarks });
     into.shapes++; return true;
   }
@@ -4105,7 +4107,7 @@ async function importTAK(files, label){
   const bits = [];
   if (added) bits.push(`${added} marker${added===1?'':'s'}`);
   if (into.routes) bits.push(`${into.routes} route${into.routes===1?'':'s'}`);
-  if (into.shapes) bits.push(`${into.shapes} area${into.shapes===1?'':'s'}`);
+  if (into.shapes) bits.push(`${into.shapes} drawing${into.shapes===1?'':'s'}`);
   const nAtt = into.points.reduce((n,p) => n + ((ATT_BY_UID[p.uid]||[]).length), 0);
   toast(`${label}: imported ${bits.join(', ') || 'nothing'}${nAtt ? `, plus ${nAtt} attachment${nAtt===1?'':'s'}` : ''}${into.skipped ? ` — ${into.skipped} item${into.skipped===1?'':'s'} not recognised` : ''}.`, 7000);
 }
@@ -4526,8 +4528,12 @@ function exportKML(){
     const coords = (rt.path && rt.path.length ? rt.path : rt.waypoints.map(w=>[w.lat,w.lon])).map(p => `${p[1]},${p[0]},0`).join(' ');
     return `    <Placemark><name>${esc(rt.name)}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>4</width></LineStyle></Style><description>${rt.waypoints.length} stops${rt.lengthM?` — ${(rt.lengthM/1000).toFixed(1)} km`:''}</description><LineString><tessellate>1</tessellate><coordinates>${coords}</coordinates></LineString></Placemark>`;
   }).join('\n') + `\n  </Folder>`;
-  const shapeFolder = !shs.length ? '' : `  <Folder><name>Threat areas</name>\n` + shs.map(sh => {
+  const shapeFolder = !shs.length ? '' : `  <Folder><name>Drawings</name>\n` + shs.map(sh => {
     const col = sh.color || '#EE2222';
+    if (sh.kind === 'line'){
+      const coords = sh.latlngs.map(p => `${p.lon},${p.lat},0`).join(' ');
+      return `    <Placemark><name>${esc(sh.name)}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>3</width></LineStyle></Style><description>${esc(sh.notes||'')}</description><LineString><coordinates>${coords}</coordinates></LineString></Placemark>`;
+    }
     const ring = sh.kind === 'circ' ? circleRing(sh.center, sh.radius) : [...sh.latlngs.map(p=>[p.lon,p.lat]), [sh.latlngs[0].lon, sh.latlngs[0].lat]];
     const coords = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
     return `    <Placemark><name>${esc(sh.name)}</name><Style><LineStyle><color>${kmlColor(col)}</color><width>3</width></LineStyle><PolyStyle><color>45${kmlColor(col).slice(2)}</color></PolyStyle></Style><description>${esc(sh.notes||'')}</description><Polygon><outerBoundaryIs><LinearRing><coordinates>${coords}</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>`;
@@ -5527,7 +5533,7 @@ function createShape(def){
   if (uid) { const m = uid.match(/^SHAPE\.(\d+)$/); if (m) shapeSeq = Math.max(shapeSeq, +m[1]); else uid = null; }
   if (!uid) uid = 'SHAPE.' + (++shapeSeq);
   const sh = { uid, kind: def.kind,
-    name: (def.name && def.name.trim()) || ((def.kind==='circ' ? 'Circle ' : 'Area ') + uid.slice(6)),
+    name: (def.name && def.name.trim()) || ((def.kind==='circ' ? 'Circle ' : def.kind==='line' ? 'Line ' : 'Area ') + uid.slice(6)),
     color: safeColor(def.color, '#ee2222'), latlngs: def.latlngs, center: def.center, radius: def.radius, notes: def.notes || '' };
   shapes[uid] = sh;
   drawShape(sh); renderShapeList(); refreshSelUI(); scheduleAutosave();
@@ -5538,6 +5544,7 @@ function drawShape(sh){
   const opt = { color: sh.color, weight: 3, opacity:.9, fillColor: sh.color, fillOpacity:.18 };
   sh.layer = sh.kind === 'circ'
     ? L.circle([sh.center.lat, sh.center.lon], { ...opt, radius: sh.radius })
+    : sh.kind === 'line' ? L.polyline(sh.latlngs.map(p => [p.lat, p.lon]), { ...opt, fill:false })
     : L.polygon(sh.latlngs.map(p => [p.lat, p.lon]), opt);
   sh.layer.bindTooltip(esc(sh.name), { sticky:true });
   sh.layer.on('click', e => onShapeClick(sh, e));
@@ -5553,6 +5560,7 @@ function polyAreaKm2(ll){
   return Math.abs(a*R*R/2)/1e6;
 }
 function shapeMeta(sh){
+  if (sh.kind === 'line') return `Open line · ${sh.latlngs.length} points`;
   if (sh.kind === 'circ') return `Circle · radius ${sh.radius >= 1000 ? (sh.radius/1000).toFixed(2)+' km' : Math.round(sh.radius)+' m'}`;
   return `Polygon · ${sh.latlngs.length} corners · ~${polyAreaKm2(sh.latlngs).toFixed(2)} km²`;
 }
@@ -5564,7 +5572,7 @@ function renderShapeList(){
   keys.forEach(uid => {
     const sh = shapes[uid];
     const item = document.createElement('div'); item.className = 'rt-item';
-    item.innerHTML = `<div class="rt-top"><input type="color" class="sh-col" value="${esc(safeColor(sh.color, '#ee2222'))}" title="Area colour"><input class="rt-name sh-name" value="${esc(sh.name)}" spellcheck="false" title="Click to rename"></div>
+    item.innerHTML = `<div class="rt-top"><input type="color" class="sh-col" value="${esc(safeColor(sh.color, '#ee2222'))}" title="Drawing colour"><input class="rt-name sh-name" value="${esc(sh.name)}" spellcheck="false" title="Click to rename"></div>
       <div class="rt-meta">${shapeMeta(sh)}</div>
       <div class="rt-btns"><button class="sh-zoom">Zoom</button><button class="rt-exp sh-exp">Export TAK</button><button class="rt-del sh-del">Delete</button></div>`;
     el.appendChild(item);
@@ -5583,7 +5591,7 @@ function removeShape(uid, quiet){
   if (shapePopup && shapePopup._shUid === uid) map.closePopup(shapePopup);
   if (sh.layer) map.removeLayer(sh.layer);
   delete shapes[uid];
-  if (!quiet){ renderShapeList(); refreshSelUI(); scheduleAutosave(); toast(`Area “${sh.name}” deleted.`); }
+  if (!quiet){ renderShapeList(); refreshSelUI(); scheduleAutosave(); toast(`Drawing “${sh.name}” deleted.`); }
 }
 
 /* ---------- select / edit / delete an area from the map ----------
@@ -5604,11 +5612,11 @@ function onShapeClick(sh, e){
 }
 function shapePopupHTML(sh){
   return `<div class="pp shp" data-uid="${esc(sh.uid)}">
-    <div class="cat" style="color:${esc(safeColor(sh.color, '#ee2222'))}">${sh.kind==='circ' ? 'Circle' : 'Area'} · ${shapeMeta(sh).replace(/^(Circle|Polygon) · /, '')}</div>
+    <div class="cat" style="color:${esc(safeColor(sh.color, '#ee2222'))}">${shapeMeta(sh)}</div>
     <div class="afflabel">Name</div><input class="nameedit sh-pname" value="${esc(sh.name)}" spellcheck="false">
     <div class="afflabel">Colour</div><input type="color" class="dotcol sh-pcol" value="${esc(safeColor(sh.color, '#ee2222'))}">
     <div class="afflabel">Notes → TAK remarks</div><textarea class="ptnotes sh-pnotes" rows="2" placeholder="e.g. ambush site reported 12 Sep">${esc(sh.notes||'')}</textarea>
-    <div class="rowbtns"><button class="mvbtn sh-pedit">${sh.kind==='circ' ? 'Move / resize' : 'Edit corners'}</button><button class="mvbtn sh-pexp">Export TAK</button></div>
+    <div class="rowbtns">${sh.kind === 'line' ? '' : `<button class="mvbtn sh-pedit">${sh.kind==='circ' ? 'Move / resize' : 'Edit corners'}</button>`}<button class="mvbtn sh-pexp">Export TAK</button></div>
     <div class="rowbtns"><button class="rmbtn sh-pdel">Delete</button></div>
   </div>`;
 }
@@ -5627,7 +5635,7 @@ function wireShapePopup(sh){
   col.oninput = () => { sh.color = safeColor(col.value, '#ee2222'); sh.layer.setStyle({ color: sh.color, fillColor: sh.color }); el.querySelector('.cat').style.color = sh.color; renderShapeList(); scheduleAutosave(); };
   const notes = el.querySelector('.sh-pnotes');
   notes.oninput = () => { sh.notes = notes.value; scheduleAutosave(); };
-  el.querySelector('.sh-pedit').onclick = () => { map.closePopup(shapePopup); startShapeEdit(sh.uid); };
+  el.querySelector('.sh-pedit')?.addEventListener('click', () => { map.closePopup(shapePopup); startShapeEdit(sh.uid); });
   el.querySelector('.sh-pexp').onclick = () => exportShapeTAK(sh.uid);
   const del = el.querySelector('.sh-pdel');
   del.onclick = () => {
@@ -5638,7 +5646,7 @@ function wireShapePopup(sh){
 }
 function handleIcon(cls, px){ return L.divIcon({ className: cls, iconSize: [px, px], iconAnchor: [px/2, px/2] }); }
 function startShapeEdit(uid){
-  const sh = shapes[uid]; if (!sh) return;
+  const sh = shapes[uid]; if (!sh || sh.kind === 'line') return;
   if (shapeEdit) endShapeEdit(true);
   if (drawMode) cancelDraw(true);
   shapeEdit = { uid, handles: [] };
@@ -5735,7 +5743,7 @@ function shapeCot(sh, tm){
   <point lat="${f.lat}" lon="${f.lon}" hae="9999999.0" ce="9999999.0" le="9999999.0"/>
   <detail>
 ${links}
-    <link point="${f.lat},${f.lon}"/>
+    ${sh.kind === 'line' ? '' : `<link point="${f.lat},${f.lon}"/>`}
     <strokeColor value="${stroke}"/>
     <strokeWeight value="3.0"/>
     <strokeStyle value="solid"/>
@@ -5749,9 +5757,9 @@ ${links}
 }
 async function exportShapeTAK(uid){
   const sh = shapes[uid]; if (!sh) return;
-  const pkgUid = 'AREA-' + slug(sh.name) + '-' + fdate();
-  const blob = await buildPkg([{ folder: sh.uid, uid: euid(sh.uid), xml: shapeCot(sh, stamp()) }], pkgUid, `${sh.name} (threat area)`);
-  download(blob, pkgUid + '.zip', { done: `Area “${sh.name}” exported as a TAK drawing shape (${sh.kind==='circ'?'u-d-c-c':'u-d-f'}).` });
+  const pkgUid = (sh.kind === 'line' ? 'LINE-' : 'AREA-') + slug(sh.name) + '-' + fdate();
+  const blob = await buildPkg([{ folder: sh.uid, uid: euid(sh.uid), xml: shapeCot(sh, stamp()) }], pkgUid, `${sh.name} (${sh.kind === 'line' ? 'open line' : 'threat area'})`);
+  download(blob, pkgUid + '.zip', { done: `Drawing “${sh.name}” exported as a TAK drawing shape (${sh.kind==='circ'?'u-d-c-c':'u-d-f'}).` });
 }
 
 /* ---------- team iconset: custom ATAK icons by iconsetpath ---------- */
@@ -6224,7 +6232,7 @@ function loadProjectInner(obj, isRollback){
       routes[uid] = rt; drawRoute(rt);
     });
     renderRouteList();
-    (obj.shapes || []).forEach(S0 => { if (S0.kind === 'circ' ? (S0.center && +S0.radius > 0) : (S0.latlngs && S0.latlngs.length >= 3)) createShape(S0); });
+    (obj.shapes || []).forEach(S0 => { if (S0.kind === 'circ' ? (S0.center && +S0.radius > 0) : (S0.latlngs && S0.latlngs.length >= (S0.kind === 'line' ? 2 : 3))) createShape(S0); });
     (obj.overlays || []).forEach(O0 => { if (O0.url && O0.bounds) createOverlay(O0); });
     if (obj.seq){ laySeq = Math.max(laySeq, obj.seq.lay||0); addedSeq = Math.max(addedSeq, obj.seq.added||0); routeSeq = Math.max(routeSeq, obj.seq.route||0); shapeSeq = Math.max(shapeSeq, obj.seq.shape||0); ciSeq = Math.max(ciSeq, obj.seq.ci||0); imgSeq = Math.max(imgSeq, obj.seq.img||0); }
     refreshLayerSelect(); refreshSelUI(); renderRouteList();
@@ -6235,7 +6243,7 @@ function loadProjectInner(obj, isRollback){
     } else fitAll();
     if (typeof setHillshade === 'function') setHillshade(!!(obj.view && obj.view.hs));
     scheduleAutosave();
-    if (!isRollback) toast(`Project loaded — ${allMarkers.length} points, ${Object.keys(routes).length} routes, ${Object.keys(shapes).length} areas.`);
+    if (!isRollback) toast(`Project loaded — ${allMarkers.length} points, ${Object.keys(routes).length} routes, ${Object.keys(shapes).length} drawings.`);
     return true;
   } catch(err){ console.error(err); if (isRollback) throw err; toast('Could not load that project file.'); return false; }
 }
